@@ -1,0 +1,251 @@
+<script>
+/* =========================================================
+ *  Effects: 포탄 그리기, 파티클/폭발/특수 연출
+ * ========================================================= */
+/* ---------------- 포탄 ---------------- */
+function drawProj(ctx, pr, t) {
+  const a = Math.atan2(pr.vy, pr.vx), spr = pr.w.spr;
+  ctx.save(); ctx.translate(pr.x, pr.y);
+  switch (spr) {
+    case 'shell': case 'mega': {
+      const s = spr === 'mega' ? 1.9 : 1;
+      ctx.rotate(a); ctx.scale(s, s);
+      if (spr === 'mega') { ctx.save(); ctx.shadowColor = '#ff4d2d'; ctx.shadowBlur = 14; ctx.fillStyle = 'rgba(255,90,40,0.5)'; circle(ctx, 0, 0, 5); ctx.fill(); ctx.restore(); }
+      ctx.fillStyle = vgrad(ctx, -3, 3, ['#8a8f99', '#3a3d44', '#1b1c20']); ctx.beginPath(); ctx.ellipse(0, 0, 5.2, 3, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#c9a44a'; ctx.fillRect(-3, -3, 1.6, 6);
+      break;
+    }
+    case 'missile': {
+      ctx.rotate(a);
+      const fl = 5 + Math.random() * 5;
+      const g = ctx.createLinearGradient(-8 - fl, 0, -7, 0); g.addColorStop(0, 'rgba(255,120,0,0)'); g.addColorStop(1, '#ffe27a');
+      ctx.fillStyle = g; poly(ctx, [-7, -2, -7 - fl, 0, -7, 2]); ctx.fill();
+      ctx.fillStyle = '#f2f2f2'; ctx.fillRect(-7, -2, 11, 4);
+      ctx.fillStyle = '#e53935'; poly(ctx, [4, -2, 8.5, 0, 4, 2]); ctx.fill();
+      ctx.fillStyle = '#3b64b8'; poly(ctx, [-7, -2, -4, -2, -7, -5]); ctx.fill(); poly(ctx, [-7, 2, -4, 2, -7, 5]); ctx.fill();
+      if (pr.homingOn) { ctx.fillStyle = '#ff2d2d'; circle(ctx, 0, 0, 1.2 + Math.sin(t * 30)); ctx.fill(); }
+      break;
+    }
+    case 'plasma': {
+      ctx.globalCompositeOperation = 'lighter';
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 12); g.addColorStop(0, '#ffffff'); g.addColorStop(0.3, '#ff7bff'); g.addColorStop(1, 'rgba(160,40,255,0)');
+      ctx.fillStyle = g; circle(ctx, 0, 0, 12); ctx.fill();
+      break;
+    }
+    case 'drill': {
+      ctx.rotate(a);
+      ctx.fillStyle = vgrad(ctx, -3, 3, ['#ffffff', '#9aa0aa', '#50545c']); poly(ctx, [-5, -3.2, 7, 0, -5, 3.2]); ctx.fill();
+      ctx.strokeStyle = '#333'; ctx.lineWidth = 0.7;
+      for (let i = 0; i < 3; i++) { const x = -3 + i * 3 + ((t * 40) % 3); ctx.beginPath(); ctx.moveTo(x, -2.4 + i * 0.6); ctx.lineTo(x + 1.2, 2.4 - i * 0.6); ctx.stroke(); }
+      ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(210,77,255,0.5)'; circle(ctx, -5, 0, 4); ctx.fill();
+      break;
+    }
+    case 'ball': {
+      const g = ctx.createRadialGradient(-1.5, -1.5, 0.5, 0, 0, 5); g.addColorStop(0, '#fff3c4'); g.addColorStop(0.5, '#ff9d2e'); g.addColorStop(1, '#a8420b');
+      ctx.fillStyle = g; circle(ctx, 0, 0, 5); ctx.fill();
+      break;
+    }
+    case 'ice': case 'icicle': {
+      ctx.rotate(a);
+      const L = spr === 'icicle' ? 14 : 8;
+      ctx.fillStyle = 'rgba(200,245,255,0.95)'; poly(ctx, [-L * 0.6, -3, L, 0, -L * 0.6, 3, -L * 0.3, 0]); ctx.fill();
+      ctx.strokeStyle = '#3fb6e8'; ctx.lineWidth = 0.8; ctx.stroke();
+      ctx.strokeStyle = '#fff'; ctx.beginPath(); ctx.moveTo(-L * 0.4, -1); ctx.lineTo(L * 0.8, 0); ctx.stroke();
+      break;
+    }
+    case 'bomb': case 'bomblet': {
+      const s = spr === 'bomblet' ? 0.65 : 1;
+      ctx.rotate(a); ctx.scale(s, s);
+      ctx.fillStyle = '#2a2d33'; ctx.beginPath(); ctx.ellipse(0, 0, 6, 4.2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#e53935'; ctx.fillRect(-1, -4.2, 2, 8.4);
+      ctx.fillStyle = '#555'; poly(ctx, [-5, 0, -10, -4, -10, 4]); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.beginPath(); ctx.ellipse(1.5, -1.8, 2.5, 1, 0, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+  }
+  ctx.restore();
+}
+
+/* ---------------- 파티클 & 이펙트 ---------------- */
+class Effects {
+  constructor(game) {
+    this.g = game; this.parts = []; this.shake = 0; this.flash = 0; this.beams = []; this.planes = []; this.targets = []; this.rings = [];
+  }
+  add(p) { if (this.parts.length < 1800) this.parts.push(p); }
+  puff(x, y, n, o) {
+    for (let i = 0; i < n; i++) {
+      const a = rand(0, Math.PI * 2), sp = rand(o.v0 || 10, o.v1 || 60);
+      this.add({ type: o.type, x: x + rand(-(o.jx || 0), o.jx || 0), y: y + rand(-(o.jy || 0), o.jy || 0), vx: Math.cos(a) * sp + (o.vx || 0), vy: Math.sin(a) * sp + (o.vy || 0),
+        g: o.g || 0, drag: o.drag || 0.98, life: 0, max: rand(o.l0 || 0.5, o.l1 || 1), size: rand(o.s0 || 2, o.s1 || 5), grow: o.grow || 0, color: o.color, rot: rand(0, 6), vr: rand(-10, 10) });
+    }
+  }
+  terrainColors() { const th = this.g.theme; return [th.top[0], th.soil[0], th.soil[1], th.soil[2]]; }
+  // ----- sim hooks -----
+  fire(p, w, mz) {
+    if (!p) return;
+    p.recoil = 1;
+    const k = w.fx === 'mega' ? 'mega' : w.spr === 'missile' ? 'missile' : w.fx === 'plasma' ? 'plasma' : w.fx === 'ice' ? 'ice' : 'fire';
+    Sound.play(k);
+    this.puff(mz.x, mz.y, 10, { type: 'smoke', v0: 5, v1: 40, l0: 0.5, l1: 1.1, s0: 3, s1: 6, grow: 10, color: '200,200,200' });
+    this.puff(mz.x, mz.y, 8, { type: 'fire', v0: 20, v1: 90, l0: 0.1, l1: 0.3, s0: 2, s1: 5 });
+    this.shake = Math.max(this.shake, 3);
+  }
+  spawn() { }
+  trail(pr) {
+    const s = pr.w.spr;
+    pr.tick = (pr.tick || 0) + 1;
+    if (s === 'plasma') { if (pr.tick % 2 === 0) this.add({ type: 'glow', x: pr.x, y: pr.y, vx: 0, vy: 0, life: 0, max: 0.4, size: 7, color: '255,90,255' }); }
+    else if (s === 'ice' || s === 'icicle') { if (pr.tick % 3 === 0) this.add({ type: 'snow', x: pr.x, y: pr.y, vx: rand(-10, 10), vy: rand(-10, 10), life: 0, max: 0.7, size: rand(1, 2.2) }); }
+    else if (s === 'missile') { if (pr.tick % 2 === 0) this.add({ type: 'smoke', x: pr.x - pr.vx * 0.012, y: pr.y - pr.vy * 0.012, vx: rand(-8, 8), vy: rand(-8, 8), drag: 0.95, life: 0, max: 1.1, size: 2.5, grow: 9, color: '230,230,230' }); }
+    else if (pr.tick % 4 === 0) this.add({ type: 'smoke', x: pr.x, y: pr.y, vx: 0, vy: 0, drag: 0.95, life: 0, max: 0.6, size: 1.6, grow: 4, color: '180,180,180' });
+  }
+  split(pr) { this.add({ type: 'ring', x: pr.x, y: pr.y, life: 0, max: 0.35, size: 4, grow: 70, color: '255,230,120' }); Sound.play('click'); Sound.play('fire'); }
+  splash(x, big) {
+    Sound.play('splash');
+    const lava = this.g.theme.lava;
+    for (let i = 0; i < (big ? 40 : 18); i++) this.add({ type: 'drop', x: x + rand(-6, 6), y: SEA, vx: rand(-60, 60), vy: rand(-280, -100) * (big ? 1.3 : 1), g: 500, drag: 0.99, life: 0, max: rand(0.6, 1.2), size: rand(1.5, 3), color: lava ? '255,140,40' : '200,235,255' });
+  }
+  bounce(pr) { Sound.play('bounce'); this.puff(pr.x, pr.y, 6, { type: 'debris', v0: 30, v1: 90, g: 300, l0: 0.4, l1: 0.8, s0: 1.5, s1: 2.5, color: this.terrainColors()[1] }); }
+  drill(pr) { if (Math.random() < 0.4) Sound.play('drill'); this.puff(pr.x, pr.y, 2, { type: 'spark', v0: 60, v1: 160, l0: 0.15, l1: 0.3, color: '255,140,255' }); }
+  explode(x, y, r, kind, mound) {
+    const big = r / 34;
+    this.shake = Math.max(this.shake, 4 + r / 4);
+    this.flash = Math.max(this.flash, Math.min(0.5, r / 140));
+    const cols = this.terrainColors();
+    if (kind === 'ice') {
+      Sound.play('iceboom');
+      this.puff(x, y, 26 * big, { type: 'shard', v0: 60, v1: 260, g: 400, l0: 0.5, l1: 1.1, s0: 2, s1: 5, color: '190,240,255' });
+      this.puff(x, y, 20, { type: 'snow', v0: 20, v1: 120, l0: 0.8, l1: 1.6 });
+      this.add({ type: 'ring', x, y, life: 0, max: 0.4, size: r * 0.5, grow: r * 3, color: '200,245,255' });
+      if (mound) return;
+    } else if (kind === 'plasma') {
+      Sound.play('boom', big * 0.6); Sound.play('plasma');
+      this.puff(x, y, 30 * big, { type: 'glow', v0: 30, v1: 200, l0: 0.3, l1: 0.7, s0: 4, s1: 9, color: '255,90,255' });
+      this.add({ type: 'ring', x, y, life: 0, max: 0.45, size: r * 0.4, grow: r * 3.5, color: '255,140,255' });
+      this.add({ type: 'flash', x, y, life: 0, max: 0.25, size: r * 2.4, color: '255,180,255' });
+    } else {
+      Sound.play('boom', big);
+      this.add({ type: 'flash', x, y, life: 0, max: 0.22, size: r * 2.8, color: '255,230,160' });
+      this.add({ type: 'ring', x, y, life: 0, max: 0.35, size: r * 0.5, grow: r * 3, color: '255,220,150' });
+      this.puff(x, y, 22 * big, { type: 'fire', v0: 20, v1: 120 * big, jx: r * 0.3, jy: r * 0.3, l0: 0.25, l1: 0.6, s0: r * 0.2, s1: r * 0.45, grow: 6, vy: -30 });
+      this.puff(x, y, 14 * big, { type: 'smoke', v0: 10, v1: 60, jx: r * 0.4, jy: r * 0.4, l0: 1, l1: 2.2, s0: r * 0.2, s1: r * 0.4, grow: 14, vy: -35, color: '70,62,58' });
+      this.puff(x, y, 18 * big, { type: 'spark', v0: 120, v1: 380, g: 300, l0: 0.3, l1: 0.7, color: '255,210,120' });
+    }
+    for (let i = 0; i < 20 * big; i++) {
+      const a = rand(Math.PI * 1.05, Math.PI * 1.95), sp = rand(80, 320);
+      this.add({ type: 'debris', x: x + rand(-r / 2, r / 2), y: y + rand(-r / 2, r / 3), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, g: 520, drag: 0.99, life: 0, max: rand(0.8, 1.6), size: rand(1.5, 3.5), color: cols[Math.floor(rand(0, cols.length))], rot: rand(0, 6), vr: rand(-12, 12) });
+    }
+  }
+  damage(p, amt, w) {
+    p.hurtT = 0.5;
+    if (w && w.freeze) p.frozenT = 2.5;
+    Sound.play('hit');
+    this.add({ type: 'text', x: p.x + rand(-6, 6), y: p.y - 50, vx: 0, vy: -40, life: 0, max: 1.4, size: amt >= 200 ? 30 : 22, text: '-' + amt, color: amt >= 200 ? '#ff4d4d' : '#ffe14d' });
+    this.g.onDamage && this.g.onDamage(p, amt);
+  }
+  death(p, drown) {
+    Sound.play('die');
+    this.add({ type: 'text', x: p.x, y: p.y - 60, vx: 0, vy: -20, life: 0, max: 2, size: 26, text: drown ? '추락!' : 'K.O.!', color: '#ffffff' });
+    if (!drown) {
+      this.explode(p.x, p.y - 12, 34, 'fire', false);
+      this.puff(p.x, p.y - 12, 12, { type: 'debris', v0: 100, v1: 300, g: 500, l0: 1, l1: 2, s0: 2, s1: 4, color: TANKS[p.tank].c2 });
+    }
+  }
+  land(p, fall) { if (fall > 10) this.puff(p.x, p.y, Math.min(20, fall / 3), { type: 'smoke', v0: 10, v1: 50, l0: 0.4, l1: 0.9, s0: 2, s1: 5, grow: 8, color: '180,160,140', vy: -10 }); }
+  beam(x, top) {
+    Sound.play('zap');
+    this.beams.push({ x, top, life: 0, max: 1.0 });
+    this.shake = Math.max(this.shake, 14); this.flash = 0.6;
+    for (let y = top; y < top + 190; y += 10) this.puff(x, y, 3, { type: 'glow', v0: 30, v1: 160, l0: 0.3, l1: 0.8, s0: 3, s1: 7, color: '255,120,255' });
+  }
+  target(x, y, dur) { this.targets.push({ x, y, life: 0, max: dur }); }
+  plane(x, dir, delay) { Sound.play('plane'); this.planes.push({ x0: x - dir * (W * 0.8), dir, x, life: 0, max: delay + 2.2, delay }); }
+  storm(x) { this.targets.push({ x, y: 60, life: 0, max: 1.8, cloud: true }); }
+
+  update(dt) {
+    this.shake *= Math.pow(0.02, dt); if (this.shake < 0.1) this.shake = 0;
+    this.flash = Math.max(0, this.flash - dt * 1.5);
+    for (const p of this.parts) {
+      p.life += dt;
+      p.vx = (p.vx || 0) * (p.drag || 1); p.vy = (p.vy || 0) * (p.drag || 1);
+      p.vy += (p.g || 0) * dt; p.x += p.vx * dt; p.y += p.vy * dt;
+      if (p.grow) p.size += p.grow * dt;
+      if (p.vr) p.rot += p.vr * dt;
+      if (p.type === 'debris' && p.life > 0.05 && this.g.terrain && isSolid(this.g.terrain.mask, p.x, p.y)) { p.vx *= 0.3; p.vy = -p.vy * 0.25; p.g = 0; p.vr = 0; }
+    }
+    this.parts = this.parts.filter(p => p.life < p.max);
+    [this.beams, this.planes, this.targets].forEach(arr => arr.forEach(b => b.life += dt));
+    this.beams = this.beams.filter(b => b.life < b.max);
+    this.planes = this.planes.filter(b => b.life < b.max);
+    this.targets = this.targets.filter(b => b.life < b.max);
+  }
+  draw(ctx, t) {
+    // 목표 표시 & 먹구름
+    for (const tg of this.targets) {
+      const k = tg.life / tg.max;
+      if (tg.cloud) {
+        ctx.save(); ctx.globalAlpha = Math.sin(k * Math.PI) * 0.8; ctx.fillStyle = '#6a7d92';
+        for (let i = -3; i <= 3; i++) { circle(ctx, tg.x + i * 26, tg.y + Math.sin(i + t) * 5, 26); ctx.fill(); }
+        ctx.restore();
+      } else {
+        ctx.save(); ctx.strokeStyle = `rgba(255,60,60,${1 - k})`; ctx.lineWidth = 2;
+        const r = 26 - k * 12; circle(ctx, tg.x, tg.y, r); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(tg.x - r - 6, tg.y); ctx.lineTo(tg.x + r + 6, tg.y); ctx.moveTo(tg.x, tg.y - r - 6); ctx.lineTo(tg.x, tg.y + r + 6); ctx.stroke();
+        ctx.globalAlpha = 0.4 * (1 - k); ctx.fillStyle = '#ff4d4d'; ctx.fillRect(tg.x - 2, 0, 4, tg.y); ctx.restore();
+      }
+    }
+    // 비행기
+    for (const pl of this.planes) {
+      const k = pl.life / pl.max, x = lerp(pl.x0, pl.x + pl.dir * W * 0.8, k), y = 70;
+      ctx.save(); ctx.translate(x, y); ctx.scale(pl.dir * 1.6, 1.6);
+      ctx.fillStyle = '#5b6770'; rrect(ctx, -24, -5, 44, 10, 5); ctx.fill();
+      ctx.fillStyle = '#7d8a94'; poly(ctx, [-6, 0, 8, 0, -2, 18, -10, 18]); ctx.fill(); poly(ctx, [-6, 0, 8, 0, -2, -14, -10, -14]); ctx.fill();
+      ctx.fillStyle = '#5b6770'; poly(ctx, [-24, -4, -30, -14, -22, -14, -18, -4]); ctx.fill();
+      ctx.fillStyle = '#9fe3ff'; ctx.beginPath(); ctx.ellipse(12, -3, 5, 3, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#e53935'; circle(ctx, -4, 0, 2.6); ctx.fill();
+      ctx.fillStyle = 'rgba(40,40,40,0.4)'; ctx.fillRect(20, -8 + Math.sin(t * 60) * 7, 2, 8);
+      ctx.restore();
+    }
+    // 위성 레이저
+    for (const b of this.beams) {
+      const k = b.life / b.max, w = 38 * Math.sin(Math.min(1, k * 3) * Math.PI / 2) * (1 - k);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      const g = ctx.createLinearGradient(b.x - w, 0, b.x + w, 0);
+      g.addColorStop(0, 'rgba(160,40,255,0)'); g.addColorStop(0.3, 'rgba(210,80,255,0.7)'); g.addColorStop(0.5, 'rgba(255,255,255,1)'); g.addColorStop(0.7, 'rgba(210,80,255,0.7)'); g.addColorStop(1, 'rgba(160,40,255,0)');
+      ctx.fillStyle = g; ctx.fillRect(b.x - w, 0, w * 2, b.top + 200);
+      ctx.restore();
+    }
+    ctx.save();
+    for (const p of this.parts) {
+      const k = p.life / p.max, a = 1 - k;
+      switch (p.type) {
+        case 'smoke': ctx.fillStyle = `rgba(${p.color},${a * 0.55})`; circle(ctx, p.x, p.y, p.size); ctx.fill(); break;
+        case 'debris': ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.globalAlpha = Math.min(1, a * 2); ctx.fillStyle = p.color; ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size); ctx.restore(); break;
+        case 'shard': ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.globalAlpha = a; ctx.fillStyle = `rgba(${p.color},1)`; poly(ctx, [0, -p.size, p.size * 0.5, 0, 0, p.size * 0.6, -p.size * 0.5, 0]); ctx.fill(); ctx.restore(); break;
+        case 'snow': ctx.fillStyle = `rgba(255,255,255,${a})`; circle(ctx, p.x, p.y, p.size); ctx.fill(); break;
+        case 'drop': ctx.fillStyle = `rgba(${p.color},${a})`; circle(ctx, p.x, p.y, p.size); ctx.fill(); break;
+        case 'ring': ctx.strokeStyle = `rgba(${p.color},${a})`; ctx.lineWidth = 3 * a + 0.5; circle(ctx, p.x, p.y, p.size); ctx.stroke(); break;
+        case 'text':
+          ctx.font = `${p.size}px 'Black Han Sans', 'Jua', sans-serif`; ctx.textAlign = 'center';
+          ctx.globalAlpha = Math.min(1, a * 2.5); ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+          const sc = 1 + Math.max(0, 0.15 - p.life) * 4; ctx.save(); ctx.translate(p.x, p.y); ctx.scale(sc, sc);
+          ctx.strokeText(p.text, 0, 0); ctx.fillStyle = p.color; ctx.fillText(p.text, 0, 0); ctx.restore(); ctx.globalAlpha = 1; break;
+      }
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    for (const p of this.parts) {
+      const k = p.life / p.max, a = 1 - k;
+      switch (p.type) {
+        case 'fire': {
+          const col = k < 0.3 ? '255,240,180' : k < 0.6 ? '255,150,40' : '200,60,20';
+          ctx.fillStyle = `rgba(${col},${a * 0.8})`; circle(ctx, p.x, p.y, p.size * (1 - k * 0.3)); ctx.fill(); break;
+        }
+        case 'spark': ctx.strokeStyle = `rgba(${p.color},${a})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.03, p.y - p.vy * 0.03); ctx.stroke(); break;
+        case 'glow': { const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size); g.addColorStop(0, `rgba(${p.color},${a})`); g.addColorStop(1, `rgba(${p.color},0)`); ctx.fillStyle = g; circle(ctx, p.x, p.y, p.size); ctx.fill(); break; }
+        case 'flash': { const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size); g.addColorStop(0, `rgba(${p.color},${a * 0.9})`); g.addColorStop(1, `rgba(${p.color},0)`); ctx.fillStyle = g; circle(ctx, p.x, p.y, p.size); ctx.fill(); break; }
+      }
+    }
+    ctx.restore();
+  }
+}
+</script>

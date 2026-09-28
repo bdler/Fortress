@@ -1,0 +1,300 @@
+<script>
+/* =========================================================
+ *  UI: 화면 전환, 타이틀/로비/결과 화면, 부트
+ * ========================================================= */
+/* ---------------- 화면 전환 ---------------- */
+function showScreen(name) {
+  G.screen = name;
+  $$('.screen').forEach(s => s.classList.toggle('show', s.id === 'scr-' + name));
+  const play = name === 'play';
+  $('#hud').classList.toggle('hidden', !play);
+  $('#plist').classList.toggle('hidden', !play);
+  $('#touch').classList.toggle('hidden', !play);
+  if (play) { G.attract = false; Sound.silent = false; }
+  resize();
+}
+
+/** 진행 중인 매치 상태를 모두 비움 (데모 → 실제 게임 전환 등) */
+function resetMatch() {
+  if (G.backend && G.backend.stopped === false && !G.backend.local) G.backend.leave();
+  G.queue = []; G.log = []; G.players = []; G.anim = null; G.turn = null; G.ctl = null; G.busy = false;
+  G.live = null; G.endInfo = null; G.needResync = false; G.playedTurns = new Set(); G.bg = null;
+  hudCache = {};
+  Sound.moving(false);
+  for (const k in Input) Input[k] = false;
+}
+
+function startAttract() {
+  resetMatch();
+  G.attract = true; Sound.silent = true;
+  const ids = TANK_IDS.slice().sort(() => Math.random() - 0.5);
+  const players = [0, 1, 2, 3].map(i => ({ id: 'demo' + i, name: ['포돌이', '미사일맨', '레이저킹', '뿌요'][i], tank: ids[i], team: 0, slot: i, cpu: true }));
+  G.backend = new LocalBackend({ players, teamMode: false, theme: 'random' });
+}
+
+function goTitle() {
+  showScreen('title');
+  startAttract();
+}
+
+/* ---------------- 탱크 미리보기 캔버스 ---------------- */
+function drawPreviews() {
+  $$('canvas.tprev').forEach(cv => {
+    if (!cv.offsetParent) return;
+    const ctx = cv.getContext('2d'), tank = cv.dataset.tank, slot = +cv.dataset.slot || 0;
+    if (!TANKS[tank]) { ctx.clearRect(0, 0, cv.width, cv.height); return; }
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
+    const ang = 30 + Math.sin(G.t * 1.2 + slot) * 20;
+    drawTank(ctx, { tank, pc: PCOLORS[slot % 4], x: cv.width / 2, y: cv.height * 0.86, angle: ang, facing: 1, tilt: 0, t: G.t + slot, tread: G.t * 12, s: cv.width / 72, seedOff: slot, active: true });
+  });
+}
+
+/* ---------------- 로비 공통: 슬롯 카드 ---------------- */
+function statBars(st) {
+  const L = { atk: '공격', def: '방어', mov: '이동', tec: '기술' };
+  return Object.keys(L).map(k => `<div class="st"><span>${L[k]}</span><b>${'<i></i>'.repeat(st[k])}${'<i class="off"></i>'.repeat(5 - st[k])}</b></div>`).join('');
+}
+
+/**
+ * slot: { kind:'human'|'cpu'|'none', name, tank, team, you, editable, canRemove, canAdd, waiting }
+ */
+function slotCard(i, s, teamMode) {
+  const pc = PCOLORS[i];
+  if (s.kind === 'none') {
+    return `<div class="slot empty" style="--pc:${pc.c};--pd:${pc.d}">
+      <div class="slot-h"><span>P${i + 1}</span><em>${pc.name}</em></div>
+      <div class="slot-empty">${s.waiting ? '<div class="wait">참가 대기 중<span class="dots"></span></div>' : ''}
+        ${s.canAdd ? `<button class="btn sm" data-act="human" data-i="${i}">+ 사람</button>` : ''}
+        ${s.canAddCpu ? `<button class="btn sm alt" data-act="cpu" data-i="${i}">+ CPU</button>` : ''}
+      </div></div>`;
+  }
+  const T = TANKS[s.tank];
+  return `<div class="slot ${s.you ? 'you' : ''}" style="--pc:${pc.c};--pd:${pc.d}">
+    <div class="slot-h"><span>P${i + 1}</span><em>${s.kind === 'cpu' ? 'CPU' : (s.you ? '나' : '플레이어')}</em>
+      ${s.canRemove ? `<button class="x" data-act="remove" data-i="${i}" title="빼기">✕</button>` : ''}</div>
+    ${s.nameEditable ? `<input class="nm-in" data-act="name" data-i="${i}" maxlength="10" value="${esc(s.name)}">` : `<div class="nm">${esc(s.name)}</div>`}
+    <div class="tsel">
+      ${s.editable ? `<button class="arr" data-act="prev" data-i="${i}">◀</button>` : '<span></span>'}
+      <canvas class="tprev" width="150" height="96" data-tank="${s.tank}" data-slot="${i}"></canvas>
+      ${s.editable ? `<button class="arr" data-act="next" data-i="${i}">▶</button>` : '<span></span>'}
+    </div>
+    <div class="tname">${T.name} <small>${T.en}</small></div>
+    <div class="tdesc">${T.desc}</div>
+    <div class="stats">${statBars(T.stat)}<div class="st"><span>체력</span><b class="num">${T.hp}</b></div></div>
+    <div class="wlist">${T.weapons.map((w, k) => `<span class="${w.ss ? 'ss' : ''}">${k === 2 ? 'SS' : k + 1}. ${w.name}</span>`).join('')}</div>
+    ${teamMode ? `<div class="teams">${[0, 1, 2].map(t => `<button class="tb ${s.team === t ? 'on' : ''}" ${s.editable ? '' : 'disabled'} data-act="team" data-i="${i}" data-team="${t}" style="--tc:${TEAM_COLORS[t]}">${TEAM_NAMES[t]}</button>`).join('')}</div>` : ''}
+  </div>`;
+}
+
+function mapPicker(cur, editable) {
+  return ['random'].concat(THEME_IDS).map(id => `<button class="mp ${cur === id ? 'on' : ''} ${id}" ${editable ? '' : 'disabled'} data-map="${id}">${id === 'random' ? '🎲 랜덤' : THEMES[id].name}</button>`).join('');
+}
+
+/* ---------------- 로컬 로비 ---------------- */
+const LocalLobby = {
+  slots: [
+    { kind: 'human', name: '플레이어1', tank: 'cannon', team: 1 },
+    { kind: 'cpu', name: 'CPU 2', tank: 'missile', team: 2 },
+    { kind: 'cpu', name: 'CPU 3', tank: 'laser', team: 1 },
+    { kind: 'none', name: '', tank: 'multi', team: 2 }
+  ],
+  theme: 'random', teamMode: false
+};
+
+function renderLocalLobby() {
+  const L = LocalLobby;
+  $('#local-slots').innerHTML = L.slots.map((s, i) => slotCard(i, Object.assign({}, s, {
+    editable: true, nameEditable: s.kind === 'human', canRemove: i > 0, canAdd: true, canAddCpu: true
+  }), L.teamMode)).join('');
+  $('#local-maps').innerHTML = mapPicker(L.theme, true);
+  $('#local-team').checked = L.teamMode;
+}
+
+function localLobbyAction(e) {
+  const b = e.target.closest('[data-act],[data-map]');
+  if (!b) return;
+  const L = LocalLobby;
+  if (b.dataset.map) { L.theme = b.dataset.map; Sound.play('click'); renderLocalLobby(); return; }
+  const i = +b.dataset.i, s = L.slots[i], act = b.dataset.act;
+  if (act === 'name') return;
+  Sound.play('click');
+  if (act === 'prev' || act === 'next') { const k = TANK_IDS.indexOf(s.tank); s.tank = TANK_IDS[(k + (act === 'next' ? 1 : TANK_IDS.length - 1)) % TANK_IDS.length]; }
+  if (act === 'remove') s.kind = 'none';
+  if (act === 'human') { s.kind = 'human'; s.name = '플레이어' + (i + 1); }
+  if (act === 'cpu') { s.kind = 'cpu'; s.name = 'CPU ' + (i + 1); s.tank = TANK_IDS[Math.floor(Math.random() * TANK_IDS.length)]; }
+  if (act === 'team') s.team = +b.dataset.team;
+  renderLocalLobby();
+}
+
+function startLocalGame() {
+  const L = LocalLobby;
+  $$('#local-slots .nm-in').forEach(inp => { L.slots[+inp.dataset.i].name = inp.value.trim().slice(0, 10) || ('플레이어' + (+inp.dataset.i + 1)); });
+  const players = L.slots.map((s, i) => s.kind === 'none' ? null : { id: 'p' + i, name: s.name, tank: s.tank, team: s.team, slot: i, cpu: s.kind === 'cpu' }).filter(Boolean);
+  if (players.length < 2) { toast('2명 이상 필요합니다.'); return; }
+  if (L.teamMode) {
+    const sides = new Set(players.map(p => p.team ? 'T' + p.team : p.id));
+    if (sides.size < 2) { toast('팀전은 최소 두 편이 필요합니다.'); return; }
+  }
+  G.lastConfig = { players, teamMode: L.teamMode, theme: L.theme };
+  launchLocal(G.lastConfig);
+}
+
+function launchLocal(cfg) {
+  resetMatch();
+  G.attract = false; Sound.silent = false;
+  G.backend = new LocalBackend(cfg);
+  showScreen('play');
+}
+
+/* ---------------- 온라인 로비 ---------------- */
+const Online = { sess: null };
+
+function onlineName() { return ($('#on-name').value || '').trim().slice(0, 10) || '플레이어'; }
+
+async function onlineCreate() {
+  try {
+    setBusyBtn(true);
+    const sess = await Net.call('createRoom', onlineName());
+    enterOnlineLobby(sess);
+  } catch (e) { toast(e.message); } finally { setBusyBtn(false); }
+}
+async function onlineJoin() {
+  const code = ($('#on-code').value || '').trim().toUpperCase();
+  if (code.length !== 4) { toast('4자리 방 코드를 입력하세요.'); return; }
+  try {
+    setBusyBtn(true);
+    const sess = await Net.call('joinRoom', code, onlineName());
+    enterOnlineLobby(sess);
+  } catch (e) { toast(e.message); } finally { setBusyBtn(false); }
+}
+function setBusyBtn(b) { $$('#scr-online button').forEach(x => x.disabled = b); }
+
+function enterOnlineLobby(sess) {
+  try { localStorage.setItem('fortress_name', onlineName()); } catch (e) { }
+  Online.sess = sess;
+  resetMatch();
+  G.attract = false; Sound.silent = false;
+  Online.lastKey = null;
+  G.backend = new OnlineBackend(sess);
+  showScreen('onlineLobby');
+  $('#room-code').textContent = sess.code;
+  $('#on-slots').innerHTML = '<div class="loading">방 정보를 불러오는 중...</div>';
+}
+
+function renderOnlineLobby() {
+  const B = G.backend, room = B && B.room;
+  if (!room) return;
+  const host = room.hostId === B.pid;
+  const key = JSON.stringify([room.players, room.theme, room.teamMode, room.hostId]);
+  if (key === Online.lastKey) return;
+  Online.lastKey = key;
+  const slots = [0, 1, 2, 3].map(i => {
+    const p = room.players.find(q => q.slot === i);
+    if (!p) return { kind: 'none', waiting: true, canAddCpu: host };
+    const you = p.id === B.pid;
+    return { kind: p.cpu ? 'cpu' : 'human', name: p.name + (p.id === room.hostId ? ' 👑' : ''), tank: p.tank, team: p.team, you,
+             editable: you || (host && p.cpu), canRemove: host && !you, pid: p.id, cpu: p.cpu };
+  });
+  Online.slots = slots;
+  $('#on-slots').innerHTML = slots.map((s, i) => slotCard(i, s, room.teamMode)).join('');
+  $('#on-maps').innerHTML = mapPicker(room.theme, host);
+  $('#on-team').checked = room.teamMode; $('#on-team').disabled = !host;
+  $('#on-start').style.display = host ? '' : 'none';
+  $('#on-wait').style.display = host ? 'none' : '';
+  $('#on-count').textContent = room.players.length;
+}
+
+async function onlineLobbyAction(e) {
+  const b = e.target.closest('[data-act],[data-map]');
+  if (!b || b.disabled) return;
+  const B = G.backend, room = B.room;
+  if (!room) return;
+  Sound.play('click');
+  const call = async (fn, ...args) => {
+    try { B.room = await Net.call(fn, B.code, B.pid, B.token, ...args); Online.lastKey = null; renderOnlineLobby(); }
+    catch (err) { toast(err.message); }
+  };
+  if (b.dataset.map) return call('hostUpdate', { theme: b.dataset.map });
+  const i = +b.dataset.i, s = Online.slots[i], act = b.dataset.act;
+  if (act === 'cpu') return call('hostUpdate', { addCpu: true });
+  if (!s || !s.pid) return;
+  if (act === 'prev' || act === 'next') {
+    const k = TANK_IDS.indexOf(s.tank), tank = TANK_IDS[(k + (act === 'next' ? 1 : TANK_IDS.length - 1)) % TANK_IDS.length];
+    // 즉시 반영(낙관적)
+    const cv = b.parentElement.querySelector('canvas'); if (cv) cv.dataset.tank = tank;
+    return s.you ? call('updateMe', { tank }) : call('hostUpdate', { cpuId: s.pid, tank });
+  }
+  if (act === 'team') { const team = +b.dataset.team; return s.you ? call('updateMe', { team }) : call('hostUpdate', { cpuId: s.pid, team }); }
+  if (act === 'remove') return s.cpu ? call('hostUpdate', { cpuId: s.pid, remove: true }) : call('hostUpdate', { kick: s.pid });
+}
+
+async function onlineStart() {
+  const B = G.backend;
+  try { B.room = await Net.call('startGame', B.code, B.pid, B.token); }
+  catch (e) { toast(e.message); }
+}
+
+/* ---------------- 결과 화면 ---------------- */
+function showResult(ev) {
+  const winners = new Set(ev.winners);
+  const ranked = G.players.slice().sort((a, b) => (winners.has(b.id) - winners.has(a.id)) || (b.alive - a.alive) || (b.hp - a.hp) || (b.totalDealt - a.totalDealt));
+  const win = G.players.filter(p => winners.has(p.id));
+  let title = '무승부';
+  if (win.length) title = G.teamMode && win[0].team ? `${TEAM_NAMES[win[0].team]} 승리!` : `${win[0].name} 승리!`;
+  $('#res-title').textContent = title;
+  $('#res-list').innerHTML = ranked.map((p, i) => `
+    <div class="rrow ${winners.has(p.id) ? 'win' : ''}" style="--pc:${p.pc.c}">
+      <div class="rk">${winners.has(p.id) ? '🏆' : i + 1}</div>
+      <canvas class="tprev" width="110" height="70" data-tank="${p.tank}" data-slot="${p.slot}"></canvas>
+      <div class="rn"><b>${esc(p.name)}</b><small>${TANKS[p.tank].name}${p.cpu ? ' · CPU' : ''}</small></div>
+      <div class="rs"><span>입힌 데미지</span><b>${p.totalDealt}</b></div>
+      <div class="rs"><span>남은 체력</span><b>${p.alive ? p.hp : (p.left ? '탈주' : 'K.O.')}</b></div>
+    </div>`).join('');
+  $('#res-again').style.display = G.backend.local ? '' : 'none';
+  showScreen('result');
+  $('#hud').classList.add('hidden');
+}
+
+/* ---------------- 부트 ---------------- */
+function boot() {
+  G.canvas = $('#game'); G.ctx = G.canvas.getContext('2d');
+  window.addEventListener('resize', resize);
+  setupInput();
+  try { const n = localStorage.getItem('fortress_name'); if (n) $('#on-name').value = n; } catch (e) { }
+
+  $('#btn-local').onclick = () => { Sound.init(); Sound.play('click'); renderLocalLobby(); showScreen('lobby'); };
+  $('#btn-online').onclick = () => {
+    Sound.init(); Sound.play('click');
+    $('#on-unavail').style.display = Net.available() ? 'none' : '';
+    $('#on-forms').style.display = Net.available() ? '' : 'none';
+    showScreen('online');
+  };
+  $('#btn-help').onclick = () => { Sound.init(); $('#help').classList.add('show'); };
+  $('#help-close').onclick = () => $('#help').classList.remove('show');
+  $$('.btn-back').forEach(b => b.onclick = () => { Sound.play('click'); goTitle(); });
+  $('#local-slots').addEventListener('click', localLobbyAction);
+  $('#local-maps').addEventListener('click', localLobbyAction);
+  $('#local-team').onchange = e => { LocalLobby.teamMode = e.target.checked; renderLocalLobby(); };
+  $('#local-start').onclick = () => { Sound.init(); startLocalGame(); };
+  $('#on-create').onclick = onlineCreate;
+  $('#on-join').onclick = onlineJoin;
+  $('#on-code').addEventListener('keydown', e => { if (e.key === 'Enter') onlineJoin(); });
+  $('#on-slots').addEventListener('click', onlineLobbyAction);
+  $('#on-maps').addEventListener('click', onlineLobbyAction);
+  $('#on-team').onchange = async e => { const B = G.backend; try { B.room = await Net.call('hostUpdate', B.code, B.pid, B.token, { teamMode: e.target.checked }); Online.lastKey = null; renderOnlineLobby(); } catch (err) { toast(err.message); } };
+  $('#on-start').onclick = onlineStart;
+  $('#room-code').onclick = () => { try { navigator.clipboard.writeText($('#room-code').textContent); toast('방 코드를 복사했습니다.'); } catch (e) { } };
+  $('#res-again').onclick = () => { if (G.lastConfig) launchLocal(G.lastConfig); };
+  $('#res-home').onclick = goTitle;
+  $('#btn-quit').onclick = () => { if (confirm('게임에서 나가시겠습니까?')) goTitle(); };
+  $('#btn-mute').onclick = () => { Sound.init(); Sound.setMuted(!Sound.muted); $('#btn-mute').textContent = Sound.muted ? '🔇' : '🔊'; };
+  $('#btn-skip').onclick = skipMyTurn;
+  $$('#hud-weapons .wbtn').forEach((b, i) => b.onclick = () => selectWeapon(i));
+  if ('ontouchstart' in window || navigator.maxTouchPoints > 0) document.body.classList.add('touch');
+
+  startAttract();
+  showScreen('title');
+  requestAnimationFrame(loop);
+}
+window.addEventListener('load', boot);
+</script>

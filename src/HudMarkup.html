@@ -1,0 +1,41 @@
+<!-- 인게임 HUD / 오버레이 / 터치 조작 마크업 -->
+<div id="plist" class="hidden"></div>
+<div id="banner"></div>
+<div id="toasts"></div>
+
+<!-- 모바일 터치 조작 -->
+<div id="touch" class="hidden">
+  <div class="tpad left"><button data-touch="left">◀</button><button data-touch="right">▶</button></div>
+  <div class="tpad right"><div class="updown"><button data-touch="up">▲</button><button data-touch="down">▼</button></div><button data-touch="fire" class="fire">발사</button></div>
+</div>
+
+<!-- 하단 HUD -->
+<div id="hud" class="hidden">
+  <div class="hud-l">
+    <canvas id="hud-portrait" width="140" height="84"></canvas>
+    <div class="hud-info">
+      <div class="hud-nm"><b id="hud-name"></b><small id="hud-tank"></small></div>
+      <div class="bar hp"><i id="hud-hp"></i><span id="hud-hp-t"></span></div>
+      <div class="bar ss"><i id="hud-ss"></i><span>SS</span></div>
+    </div>
+  </div>
+  <div class="hud-m">
+    <div class="dial"><canvas id="hud-angle" width="96" height="96"></canvas><b id="hud-angle-t">45°</b></div>
+    <div class="gauges">
+      <div class="glabel"><span>POWER</span><b id="hud-power-t">0</b></div>
+      <div class="gauge power"><i id="hud-power"></i><em id="hud-lastpower" title="지난 파워"></em><div class="ticks"></div></div>
+      <div class="glabel mv"><span>MOVE</span></div>
+      <div class="gauge move"><i id="hud-move"></i></div>
+    </div>
+    <div id="hud-weapons" class="weapons">
+      <button class="wbtn"><kbd>1</kbd><span class="wn"></span><span class="wd"></span></button>
+      <button class="wbtn"><kbd>2</kbd><span class="wn"></span><span class="wd"></span></button>
+      <button class="wbtn ssw"><kbd>SS</kbd><span class="wn"></span><span class="wd"></span></button>
+    </div>
+  </div>
+  <div class="hud-r">
+    <div class="wind"><div class="wl">WIND</div><div class="wbar"><div class="side l"><i id="wind-l"></i></div><div class="side r"><i id="wind-r"></i></div></div><div id="wind-t"></div></div>
+    <div class="timer" id="hud-timer">25</div>
+    <div class="hbtns"><button id="btn-skip" title="턴 넘기기 (Tab)">⏭</button><button id="btn-mute" title="소리">🔊</button><button id="btn-quit" title="나가기">⏏</button></div>
+  </div>
+</div>

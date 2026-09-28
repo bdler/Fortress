@@ -165,6 +165,40 @@ kbd { display: inline-block; min-width: 1.6em; padding: 1px 6px; border-radius: 
 .rs b { font-size: 20px; }
 .res-btns { display: flex; gap: 12px; justify-content: center; margin-top: 16px; }
 
+/* ---------- 모달 ---------- */
+.modal { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; padding: 16px; }
+.modal.show { display: flex; }
+.keys { width: 100%; border-collapse: collapse; margin: 12px 0; }
+.keys td { padding: 8px 6px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.keys td:first-child { white-space: nowrap; width: 40%; }
+.tips { color: var(--muted); line-height: 1.7; padding-left: 20px; font-size: 15px; }
+.tips b { color: #fff; font-weight: normal; }
+
+/* ---------- 반응형 ---------- */
+@media (max-width: 1100px) {
+  .slots { grid-template-columns: repeat(2, 1fr); }
+  .slot { min-height: 0; }
+}
+@media (max-width: 900px) {
+  .rrow { grid-template-columns: 36px 80px 1fr 80px; }
+  .rrow .rs:last-child { display: none; }
+  .rrow canvas { width: 80px; height: 51px; }
+}
+@media (max-width: 600px) {
+  .slots { grid-template-columns: 1fr; }
+  .two { grid-template-columns: 1fr; }
+  .panel h2 { font-size: 22px; }
+}
+@media (max-height: 520px) {
+  .logo-main { font-size: 60px; }
+  #scr-title { gap: 12px; }
+  .menu { gap: 8px; }
+  .btn.big { font-size: 18px; padding: 8px 18px; }
+}
+</style>
+
+<style>
+/* 인게임 오버레이 / HUD / 터치 조작 스타일 */
 /* ---------- 게임 내 오버레이 ---------- */
 #plist { position: fixed; top: 10px; left: 10px; z-index: 5; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
 .pl { display: grid; grid-template-columns: 12px auto 44px 70px auto; align-items: center; gap: 6px; background: rgba(8,12,28,.72); border-radius: 10px; padding: 4px 10px;
@@ -254,20 +288,7 @@ body.touch #touch:not(.hidden) { display: flex; }
 .tpad button.on { background: rgba(255,210,63,.85); color: #3a2400; }
 .tpad .fire { width: 86px; height: 86px; font-size: 22px; font-family: 'Black Han Sans'; background: radial-gradient(circle at 40% 35%, #ff8a7a, #e53935 60%, #8a1010); }
 
-/* ---------- 모달 ---------- */
-.modal { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; padding: 16px; }
-.modal.show { display: flex; }
-.keys { width: 100%; border-collapse: collapse; margin: 12px 0; }
-.keys td { padding: 8px 6px; border-bottom: 1px solid rgba(255,255,255,.08); }
-.keys td:first-child { white-space: nowrap; width: 40%; }
-.tips { color: var(--muted); line-height: 1.7; padding-left: 20px; font-size: 15px; }
-.tips b { color: #fff; font-weight: normal; }
-
 /* ---------- 반응형 ---------- */
-@media (max-width: 1100px) {
-  .slots { grid-template-columns: repeat(2, 1fr); }
-  .slot { min-height: 0; }
-}
 @media (max-width: 900px) {
   :root { --hudh: 96px; }
   #hud { grid-template-columns: 1fr 2.2fr auto; gap: 6px; padding: 6px; }
@@ -283,16 +304,10 @@ body.touch #touch:not(.hidden) { display: flex; }
   #plist { font-size: 12px; }
   .pl { grid-template-columns: 10px auto 50px; }
   .pl .tk, .pl .ssb { display: none; }
-  .rrow { grid-template-columns: 36px 80px 1fr 80px; }
-  .rrow .rs:last-child { display: none; }
-  .rrow canvas { width: 80px; height: 51px; }
 }
 @media (max-width: 600px) {
-  .slots { grid-template-columns: 1fr; }
-  .two { grid-template-columns: 1fr; }
   .hud-l { display: none !important; }
   #hud { grid-template-columns: 1fr auto; }
-  .panel h2 { font-size: 22px; }
 }
 @media (max-height: 520px) {
   :root { --hudh: 76px; }
@@ -326,10 +341,6 @@ body.touch #touch:not(.hidden) { display: flex; }
   .tpad button { width: 48px; height: 48px; font-size: 18px; }
   .tpad .fire { width: 70px; height: 70px; font-size: 18px; }
   #banner .bs { font-size: 16px; }
-  .logo-main { font-size: 60px; }
-  #scr-title { gap: 12px; }
-  .menu { gap: 8px; }
-  .btn.big { font-size: 18px; padding: 8px 18px; }
 }
 </style>
 
@@ -411,6 +422,7 @@ body.touch #touch:not(.hidden) { display: flex; }
   </div>
 </section>
 
+<!-- 인게임 HUD / 오버레이 / 터치 조작 마크업 -->
 <div id="plist" class="hidden"></div>
 <div id="banner"></div>
 <div id="toasts"></div>
@@ -451,6 +463,7 @@ body.touch #touch:not(.hidden) { display: flex; }
     <div class="hbtns"><button id="btn-skip" title="턴 넘기기 (Tab)">⏭</button><button id="btn-mute" title="소리">🔊</button><button id="btn-quit" title="나가기">⏏</button></div>
   </div>
 </div>
+
 
 <!-- 조작법 -->
 <div id="help" class="modal">
@@ -622,36 +635,12 @@ const TANKS = {
   }
 };
 const TANK_IDS = Object.keys(TANKS);
+</script>
 
-const THEMES = {
-  grass: {
-    name: '초원', sky: ['#5fb4ff', '#a9dcff', '#e6f6ff'], far: '#8fb7d9', mid: '#6d9f7c',
-    top: ['#5fcf3a', '#3e9e25'], soil: ['#9b6a3c', '#7a4e2b', '#5e3a1f'], rock: '#6b5a4a',
-    sea: ['#2f8fd6', '#1c5f9e'], sun: 'sun', cloud: 'rgba(255,255,255,0.9)', deco: 'flower'
-  },
-  desert: {
-    name: '사막', sky: ['#ff9e5e', '#ffcf8a', '#fff1cf'], far: '#e0a878', mid: '#c98c5a',
-    top: ['#f4d27c', '#e0b458'], soil: ['#d9a44f', '#b97f36', '#8f5a24'], rock: '#8a6a45',
-    sea: ['#3aa3a8', '#1e6c73'], sun: 'sun', cloud: 'rgba(255,240,220,0.8)', deco: 'cactus'
-  },
-  snow: {
-    name: '설원', sky: ['#9fc4e8', '#d4e6f6', '#f4f9ff'], far: '#b7cde2', mid: '#93aecb',
-    top: ['#ffffff', '#dbe9f5'], soil: ['#8aa4bd', '#6b839c', '#4c6078'], rock: '#56657a',
-    sea: ['#5d9fd0', '#2e5f8c'], sun: 'pale', cloud: 'rgba(255,255,255,0.95)', deco: 'pine', snow: true
-  },
-  night: {
-    name: '달밤', sky: ['#0b1030', '#1d2a5c', '#3b3f7a'], far: '#1e2550', mid: '#262f63',
-    top: ['#7b6cff', '#4a3fb0'], soil: ['#3a3170', '#2a2255', '#1c173d'], rock: '#141030',
-    sea: ['#1b2f6b', '#0c1740'], sun: 'moon', cloud: 'rgba(150,160,220,0.35)', deco: 'crystal', stars: true
-  },
-  volcano: {
-    name: '화산', sky: ['#2a0f12', '#6b1d15', '#c2461c'], far: '#4a1a18', mid: '#3a1512',
-    top: ['#5c4a44', '#3d302c'], soil: ['#3a2c28', '#2a1f1c', '#1a1210'], rock: '#120c0a',
-    sea: ['#ff7a1a', '#c2300b'], sun: 'none', cloud: 'rgba(60,40,40,0.55)', deco: 'ember', lava: true
-  }
-};
-const THEME_IDS = Object.keys(THEMES);
-
+<script>
+/* =========================================================
+ *  Sound: WebAudio 합성 효과음
+ * ========================================================= */
 /* ---------------------------------------------------------
  *  사운드 (WebAudio 합성: 외부 파일 없음)
  * --------------------------------------------------------- */
@@ -1157,9 +1146,8 @@ function shotResult(world, ops) {
 
 <script>
 /* =========================================================
- *  Render: 지형 그리기, 배경, 탱크 캐릭터, 포탄, 파티클 이펙트
+ *  Draw: 공용 캔버스 그리기 헬퍼
  * ========================================================= */
-
 function mkCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
 function rrect(ctx, x, y, w, h, r) {
   ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
@@ -1173,6 +1161,40 @@ function vgrad(ctx, y0, y1, stops) {
 }
 function circle(ctx, x, y, r) { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); }
 function mixRgb(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+</script>
+
+<script>
+/* =========================================================
+ *  World: 맵 테마, 지형 페인팅, 배경, 구름/날씨/바다
+ * ========================================================= */
+const THEMES = {
+  grass: {
+    name: '초원', sky: ['#5fb4ff', '#a9dcff', '#e6f6ff'], far: '#8fb7d9', mid: '#6d9f7c',
+    top: ['#5fcf3a', '#3e9e25'], soil: ['#9b6a3c', '#7a4e2b', '#5e3a1f'], rock: '#6b5a4a',
+    sea: ['#2f8fd6', '#1c5f9e'], sun: 'sun', cloud: 'rgba(255,255,255,0.9)', deco: 'flower'
+  },
+  desert: {
+    name: '사막', sky: ['#ff9e5e', '#ffcf8a', '#fff1cf'], far: '#e0a878', mid: '#c98c5a',
+    top: ['#f4d27c', '#e0b458'], soil: ['#d9a44f', '#b97f36', '#8f5a24'], rock: '#8a6a45',
+    sea: ['#3aa3a8', '#1e6c73'], sun: 'sun', cloud: 'rgba(255,240,220,0.8)', deco: 'cactus'
+  },
+  snow: {
+    name: '설원', sky: ['#9fc4e8', '#d4e6f6', '#f4f9ff'], far: '#b7cde2', mid: '#93aecb',
+    top: ['#ffffff', '#dbe9f5'], soil: ['#8aa4bd', '#6b839c', '#4c6078'], rock: '#56657a',
+    sea: ['#5d9fd0', '#2e5f8c'], sun: 'pale', cloud: 'rgba(255,255,255,0.95)', deco: 'pine', snow: true
+  },
+  night: {
+    name: '달밤', sky: ['#0b1030', '#1d2a5c', '#3b3f7a'], far: '#1e2550', mid: '#262f63',
+    top: ['#7b6cff', '#4a3fb0'], soil: ['#3a3170', '#2a2255', '#1c173d'], rock: '#141030',
+    sea: ['#1b2f6b', '#0c1740'], sun: 'moon', cloud: 'rgba(150,160,220,0.35)', deco: 'crystal', stars: true
+  },
+  volcano: {
+    name: '화산', sky: ['#2a0f12', '#6b1d15', '#c2461c'], far: '#4a1a18', mid: '#3a1512',
+    top: ['#5c4a44', '#3d302c'], soil: ['#3a2c28', '#2a1f1c', '#1a1210'], rock: '#120c0a',
+    sea: ['#ff7a1a', '#c2300b'], sun: 'none', cloud: 'rgba(60,40,40,0.55)', deco: 'ember', lava: true
+  }
+};
+const THEME_IDS = Object.keys(THEMES);
 
 /* ---------------- 지형 페인터 ---------------- */
 class TerrainPainter {
@@ -1400,6 +1422,78 @@ function makeCloudSprite(color, rng) {
   return c;
 }
 
+/* ---------------- 매치 배경 요소 (구름/날씨/바다) ---------------- */
+function makeClouds() {
+  const rng = mulberry32(G.seed + 3);
+  const sprites = [0, 1, 2].map(() => makeCloudSprite(G.theme.cloud, rng));
+  G.clouds = [];
+  for (let i = 0; i < 8; i++) G.clouds.push({ x: rng() * (W + 300) - 250, y: 30 + rng() * 260, s: 0.5 + rng() * 0.8, spr: sprites[i % 3] });
+  G.ambient = [];
+  const n = G.theme.snow ? 140 : G.theme.lava ? 60 : G.theme.stars ? 40 : 18;
+  for (let i = 0; i < n; i++) G.ambient.push({ x: rng() * W, y: rng() * H, r: 0.8 + rng() * 2, v: 20 + rng() * 40, ph: rng() * 6 });
+}
+
+function drawSea(ctx, t) {
+  const th = G.theme;
+  ctx.save();
+  if (th.lava) { ctx.shadowColor = '#ff5a00'; ctx.shadowBlur = 20; }
+  ctx.fillStyle = vgrad(ctx, SEA - 6, H, [th.sea[0], th.sea[1]]);
+  ctx.globalAlpha = th.lava ? 1 : 0.88;
+  ctx.beginPath(); ctx.moveTo(0, H);
+  for (let x = 0; x <= W; x += 10) ctx.lineTo(x, SEA + Math.sin(x * 0.02 + t * 2) * 3 + Math.sin(x * 0.053 - t * 3) * 1.5);
+  ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+  ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+  ctx.strokeStyle = th.lava ? 'rgba(255,230,120,0.9)' : 'rgba(255,255,255,0.7)'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let x = 0; x <= W; x += 10) { const y = SEA + Math.sin(x * 0.02 + t * 2) * 3 + Math.sin(x * 0.053 - t * 3) * 1.5; x ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+  ctx.stroke();
+  if (th.lava) {
+    for (let i = 0; i < 8; i++) { const x = (i * 211 + t * 20) % W, k = (t * 0.7 + i * 0.37) % 1; ctx.fillStyle = `rgba(255,200,80,${1 - k})`; circle(ctx, x, SEA + 8 - k * 10, 2 + k * 3); ctx.fill(); }
+  }
+  ctx.restore();
+}
+
+function drawAmbient(ctx, t, back) {
+  const th = G.theme;
+  ctx.save();
+  G.ambient.forEach((a, i) => {
+    if ((i % 2 === 0) !== back) return;
+    if (th.snow) {
+      const y = (a.y + t * a.v) % H, x = ((a.x + t * (G.wind * 8 + Math.sin(t + a.ph) * 10)) % W + W) % W;
+      ctx.fillStyle = 'rgba(255,255,255,0.85)'; circle(ctx, x, y, a.r); ctx.fill();
+    } else if (th.lava) {
+      const y = H - ((a.y + t * a.v) % H), x = ((a.x + Math.sin(t * 2 + a.ph) * 12 + t * G.wind * 5) % W + W) % W;
+      ctx.fillStyle = `rgba(255,${120 + (i % 5) * 20},40,${0.4 + 0.4 * Math.sin(t * 5 + a.ph)})`; circle(ctx, x, y, a.r * 0.8); ctx.fill();
+    } else if (th.stars) {
+      const x = (a.x + Math.sin(t * 0.5 + a.ph) * 20) % W, y = (a.y * 0.8) % (H * 0.8) + Math.cos(t * 0.7 + a.ph) * 10;
+      ctx.fillStyle = `rgba(190,255,150,${0.5 + 0.5 * Math.sin(t * 3 + a.ph)})`; circle(ctx, x, y, 1.6); ctx.fill();
+    } else {
+      const x = ((a.x + t * (G.wind * 12 + 15)) % W + W) % W, y = (a.y * 0.7) + Math.sin(t * 1.5 + a.ph) * 20;
+      ctx.fillStyle = th === THEMES.desert ? 'rgba(255,230,180,0.5)' : 'rgba(255,190,220,0.8)';
+      ctx.save(); ctx.translate(x, y); ctx.rotate(t * 2 + a.ph); ctx.fillRect(-2, -1, 4, 2); ctx.restore();
+    }
+  });
+  ctx.restore();
+}
+
+/** 배경(하늘·원경·구름·뒤쪽 날씨)을 그림. cam = {x, y, zoom} (패럴랙스용, 없을 수 있음) */
+function drawBackdrop(ctx, t, cam) {
+  ctx.drawImage(G.bg, 0, 0);
+  for (const c of G.clouds) { ctx.globalAlpha = 0.9; ctx.drawImage(c.spr, c.x, c.y, 220 * c.s * 1.3, 110 * c.s * 1.3); }
+  ctx.globalAlpha = 1;
+  drawAmbient(ctx, t, true);
+}
+
+/** 매 프레임 배경 요소 갱신 (구름 이동 등) */
+function updateWorldFx(dt) {
+  for (const c of G.clouds) { c.x += (5 + G.wind * 7) * c.s * dt; if (c.x > W + 60) c.x = -260; if (c.x < -270) c.x = W + 50; }
+}
+</script>
+
+<script>
+/* =========================================================
+ *  TankArt: 탱크 캐릭터 그리기 (조종사, 궤도, 탱크별 디자인)
+ * ========================================================= */
 /* ---------------- 탱크 캐릭터 ---------------- */
 function drawTreads(ctx, o, big) {
   const wr = big ? 5.2 : 4.3;
@@ -1692,7 +1786,12 @@ function drawTank(ctx, o) {
   }
   ctx.restore();
 }
+</script>
 
+<script>
+/* =========================================================
+ *  Effects: 포탄 그리기, 파티클/폭발/특수 연출
+ * ========================================================= */
 /* ---------------- 포탄 ---------------- */
 function drawProj(ctx, pr, t) {
   const a = Math.atan2(pr.vy, pr.vx), spr = pr.w.spr;
@@ -1943,6 +2042,9 @@ class Effects {
 
 <script>
 /* =========================================================
+ *  Game: 게임 상태, 턴 진행, 입력, 로컬/온라인 백엔드, CPU AI
+ * ========================================================= */
+/* =========================================================
  *  Game: 화면 전환, 턴 진행, 입력, AI, HUD, 로컬/온라인 백엔드
  * ========================================================= */
 
@@ -2115,16 +2217,6 @@ function initMatch(ev) {
   });
   G.anim = null; G.turn = null; G.ctl = null; G.busy = false; G.playedTurns = new Set(); G.endInfo = null; G.live = null;
   G.startEv = ev;
-}
-
-function makeClouds() {
-  const rng = mulberry32(G.seed + 3);
-  const sprites = [0, 1, 2].map(() => makeCloudSprite(G.theme.cloud, rng));
-  G.clouds = [];
-  for (let i = 0; i < 8; i++) G.clouds.push({ x: rng() * (W + 300) - 250, y: 30 + rng() * 260, s: 0.5 + rng() * 0.8, spr: sprites[i % 3] });
-  G.ambient = [];
-  const n = G.theme.snow ? 140 : G.theme.lava ? 60 : G.theme.stars ? 40 : 18;
-  for (let i = 0; i < n; i++) G.ambient.push({ x: rng() * W, y: rng() * H, r: 0.8 + rng() * 2, v: 20 + rng() * 40, ph: rng() * 6 });
 }
 
 function findPlayer(id) { return G.players.find(p => p.id === id); }
@@ -2504,14 +2596,19 @@ function loop(ts) {
       p.hpShow += (p.hp - p.hpShow) * Math.min(1, dt * 3);
     }
     G.fx.update(dt);
-    for (const c of G.clouds) { c.x += (5 + G.wind * 7) * c.s * dt; if (c.x > W + 60) c.x = -260; if (c.x < -270) c.x = W + 50; }
+    updateWorldFx(dt);
   }
   render(dt);
   if (G.screen === 'play') updateHud(false);
   drawPreviews();
   requestAnimationFrame(loop);
 }
+</script>
 
+<script>
+/* =========================================================
+ *  View: 인게임 렌더링 파이프라인, 오버레이, HUD
+ * ========================================================= */
 /* ---------------- 렌더링 ---------------- */
 function resize() {
   const c = G.canvas, dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -2538,10 +2635,7 @@ function render() {
   const s = G.scale * G.dpr;
   ctx.setTransform(s, 0, 0, s, (G.ox + sx * G.scale) * G.dpr, (G.oy + sy * G.scale) * G.dpr);
   ctx.save(); ctx.beginPath(); ctx.rect(-20, -20, W + 40, H + 40); ctx.clip();
-  ctx.drawImage(G.bg, 0, 0);
-  for (const c of G.clouds) { ctx.globalAlpha = 0.9; ctx.drawImage(c.spr, c.x, c.y, 220 * c.s * 1.3, 110 * c.s * 1.3); }
-  ctx.globalAlpha = 1;
-  drawAmbient(ctx, t, true);
+  drawBackdrop(ctx, t, null);
   ctx.drawImage(G.painter.canvas, 0, 0);
   // 탱크
   const cur = curPlayer();
@@ -2567,49 +2661,6 @@ function render() {
   if (G.screen === 'play') {
     ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 4 / G.scale; ctx.strokeRect(0, 0, W, H);
   }
-}
-
-function drawSea(ctx, t) {
-  const th = G.theme;
-  ctx.save();
-  if (th.lava) { ctx.shadowColor = '#ff5a00'; ctx.shadowBlur = 20; }
-  ctx.fillStyle = vgrad(ctx, SEA - 6, H, [th.sea[0], th.sea[1]]);
-  ctx.globalAlpha = th.lava ? 1 : 0.88;
-  ctx.beginPath(); ctx.moveTo(0, H);
-  for (let x = 0; x <= W; x += 10) ctx.lineTo(x, SEA + Math.sin(x * 0.02 + t * 2) * 3 + Math.sin(x * 0.053 - t * 3) * 1.5);
-  ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
-  ctx.shadowBlur = 0; ctx.globalAlpha = 1;
-  ctx.strokeStyle = th.lava ? 'rgba(255,230,120,0.9)' : 'rgba(255,255,255,0.7)'; ctx.lineWidth = 2;
-  ctx.beginPath();
-  for (let x = 0; x <= W; x += 10) { const y = SEA + Math.sin(x * 0.02 + t * 2) * 3 + Math.sin(x * 0.053 - t * 3) * 1.5; x ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
-  ctx.stroke();
-  if (th.lava) {
-    for (let i = 0; i < 8; i++) { const x = (i * 211 + t * 20) % W, k = (t * 0.7 + i * 0.37) % 1; ctx.fillStyle = `rgba(255,200,80,${1 - k})`; circle(ctx, x, SEA + 8 - k * 10, 2 + k * 3); ctx.fill(); }
-  }
-  ctx.restore();
-}
-
-function drawAmbient(ctx, t, back) {
-  const th = G.theme;
-  ctx.save();
-  G.ambient.forEach((a, i) => {
-    if ((i % 2 === 0) !== back) return;
-    if (th.snow) {
-      const y = (a.y + t * a.v) % H, x = ((a.x + t * (G.wind * 8 + Math.sin(t + a.ph) * 10)) % W + W) % W;
-      ctx.fillStyle = 'rgba(255,255,255,0.85)'; circle(ctx, x, y, a.r); ctx.fill();
-    } else if (th.lava) {
-      const y = H - ((a.y + t * a.v) % H), x = ((a.x + Math.sin(t * 2 + a.ph) * 12 + t * G.wind * 5) % W + W) % W;
-      ctx.fillStyle = `rgba(255,${120 + (i % 5) * 20},40,${0.4 + 0.4 * Math.sin(t * 5 + a.ph)})`; circle(ctx, x, y, a.r * 0.8); ctx.fill();
-    } else if (th.stars) {
-      const x = (a.x + Math.sin(t * 0.5 + a.ph) * 20) % W, y = (a.y * 0.8) % (H * 0.8) + Math.cos(t * 0.7 + a.ph) * 10;
-      ctx.fillStyle = `rgba(190,255,150,${0.5 + 0.5 * Math.sin(t * 3 + a.ph)})`; circle(ctx, x, y, 1.6); ctx.fill();
-    } else {
-      const x = ((a.x + t * (G.wind * 12 + 15)) % W + W) % W, y = (a.y * 0.7) + Math.sin(t * 1.5 + a.ph) * 20;
-      ctx.fillStyle = th === THEMES.desert ? 'rgba(255,230,180,0.5)' : 'rgba(255,190,220,0.8)';
-      ctx.save(); ctx.translate(x, y); ctx.rotate(t * 2 + a.ph); ctx.fillRect(-2, -1, 4, 2); ctx.restore();
-    }
-  });
-  ctx.restore();
 }
 
 function drawOverlays(ctx, t, cur) {
@@ -2761,7 +2812,12 @@ function setNetStatus(ok, msg) {
   const el = $('#net'); if (!el) return;
   el.className = ok ? 'ok' : 'bad'; el.title = ok ? '서버 연결됨' : ('연결 문제: ' + (msg || ''));
 }
+</script>
 
+<script>
+/* =========================================================
+ *  UI: 화면 전환, 타이틀/로비/결과 화면, 부트
+ * ========================================================= */
 /* ---------------- 화면 전환 ---------------- */
 function showScreen(name) {
   G.screen = name;

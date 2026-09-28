@@ -1,0 +1,208 @@
+<script>
+/* =========================================================
+ *  View: 인게임 렌더링 파이프라인, 오버레이, HUD
+ * ========================================================= */
+/* ---------------- 렌더링 ---------------- */
+function resize() {
+  const c = G.canvas, dpr = Math.min(2, window.devicePixelRatio || 1);
+  G.dpr = dpr;
+  c.width = Math.round(innerWidth * dpr); c.height = Math.round(innerHeight * dpr);
+  const hud = $('#hud');
+  const hudH = G.screen === 'play' && hud ? hud.offsetHeight : 0;
+  const areaH = innerHeight - hudH;
+  if (G.screen === 'play') {
+    G.scale = Math.min(innerWidth / W, areaH / H);
+    G.ox = (innerWidth - W * G.scale) / 2; G.oy = Math.max(0, (areaH - H * G.scale) / 2);
+  } else {
+    G.scale = Math.max(innerWidth / W, innerHeight / H);
+    G.ox = (innerWidth - W * G.scale) / 2; G.oy = (innerHeight - H * G.scale) / 2;
+  }
+}
+
+function render() {
+  const ctx = G.ctx, t = G.t;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#0b0f1e'; ctx.fillRect(0, 0, G.canvas.width, G.canvas.height);
+  if (!G.players.length || !G.bg) return;
+  const sh = G.fx.shake, sx = (Math.random() - 0.5) * sh, sy = (Math.random() - 0.5) * sh;
+  const s = G.scale * G.dpr;
+  ctx.setTransform(s, 0, 0, s, (G.ox + sx * G.scale) * G.dpr, (G.oy + sy * G.scale) * G.dpr);
+  ctx.save(); ctx.beginPath(); ctx.rect(-20, -20, W + 40, H + 40); ctx.clip();
+  drawBackdrop(ctx, t, null);
+  ctx.drawImage(G.painter.canvas, 0, 0);
+  // 탱크
+  const cur = curPlayer();
+  const order = G.players.slice().sort((a, b) => (a.alive - b.alive) || ((a === cur) - (b === cur)));
+  for (const p of order) {
+    if (p.sunk) continue;
+    drawTank(ctx, {
+      tank: p.tank, pc: p.pc, x: p.x, y: p.y, angle: p.angle, facing: p.facing, tilt: calcTilt(G.terrain.mask, p), t: t, tread: p.tread,
+      recoil: p.recoil, hurtT: p.hurtT, dead: !p.alive, frozenT: p.frozenT, hpr: p.hp / p.maxHp, seedOff: p.seedOff,
+      active: p === cur && !!G.ctl, ssGlow: p.alive && p.ss >= 100
+    });
+    if (!p.alive && Math.random() < 0.15) G.fx.add({ type: 'smoke', x: p.x + rand(-6, 6), y: p.y - 16, vx: rand(-5, 5) + G.wind * 2, vy: -25, drag: 0.99, life: 0, max: 2, size: 3, grow: 7, color: '60,60,60' });
+    else if (p.alive && p.hp / p.maxHp < 0.3 && Math.random() < 0.08) G.fx.add({ type: 'smoke', x: p.x - p.facing * 20, y: p.y - 20, vx: G.wind * 2, vy: -20, drag: 0.99, life: 0, max: 1.5, size: 2, grow: 5, color: '90,90,90' });
+  }
+  if (G.anim) for (const pr of G.anim.world.projs) drawProj(ctx, pr, t);
+  drawSea(ctx, t);
+  G.fx.draw(ctx, t);
+  drawAmbient(ctx, t, false);
+  drawOverlays(ctx, t, cur);
+  if (G.anim) for (const pr of G.anim.world.projs) if (pr.y < -10) drawOffscreen(ctx, pr);
+  if (G.fx.flash > 0) { ctx.fillStyle = `rgba(255,250,235,${G.fx.flash * 0.5})`; ctx.fillRect(0, 0, W, H); }
+  ctx.restore();
+  if (G.screen === 'play') {
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 4 / G.scale; ctx.strokeRect(0, 0, W, H);
+  }
+}
+
+function drawOverlays(ctx, t, cur) {
+  ctx.save();
+  ctx.textAlign = 'center';
+  for (const p of G.players) {
+    if (p.sunk) continue;
+    const x = p.x, y = p.y - 60;
+    ctx.font = "15px 'Jua', sans-serif";
+    ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+    const label = (G.teamMode && p.team ? `[${TEAM_NAMES[p.team][0]}] ` : '') + p.name;
+    ctx.strokeText(label, x, y); ctx.fillStyle = p.alive ? p.pc.c : '#888'; ctx.fillText(label, x, y);
+    if (p.alive) {
+      const bw = 46, r = p.hp / p.maxHp, rs = p.hpShow / p.maxHp;
+      ctx.fillStyle = 'rgba(0,0,0,0.65)'; rrect(ctx, x - bw / 2 - 1.5, y + 4, bw + 3, 8, 3); ctx.fill();
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(x - bw / 2, y + 5.5, bw * clamp(rs, 0, 1), 5);
+      ctx.fillStyle = r > 0.5 ? '#4bdc72' : r > 0.25 ? '#ffd23f' : '#ff5252'; ctx.fillRect(x - bw / 2, y + 5.5, bw * r, 5);
+      if (p.ss >= 100) { ctx.fillStyle = '#ffd23f'; ctx.font = "12px 'Black Han Sans', sans-serif"; ctx.strokeText('SS', x + bw / 2 + 11, y + 12); ctx.fillText('SS', x + bw / 2 + 11, y + 12); }
+    }
+  }
+  if (cur && cur.alive && !G.anim) {
+    const bob = Math.sin(t * 6) * 4, y = cur.y - 88 + bob;
+    ctx.fillStyle = cur.pc.c; ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
+    poly(ctx, [cur.x - 9, y - 10, cur.x + 9, y - 10, cur.x, y]); ctx.fill(); ctx.stroke();
+    // 조준 가이드
+    if (G.ctl && !cur.cpu) {
+      const m = muzzle(G.terrain.mask, cur, cur.angle);
+      const a = cur.angle * Math.PI / 180, dx = cur.facing * Math.cos(a), dy = -Math.sin(a);
+      ctx.setLineDash([5, 6]); ctx.lineDashOffset = -t * 20; ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(m.x + dx * 70, m.y + dy * 70); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 6;
+      const cx = cur.x, cy = cur.y - 28;
+      ctx.beginPath();
+      if (cur.facing > 0) ctx.arc(cx, cy, 64, -Math.PI / 2, 0); else ctx.arc(cx, cy, 64, Math.PI, Math.PI * 1.5);
+      ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = "14px 'Black Han Sans', sans-serif"; ctx.lineWidth = 3; ctx.strokeStyle = '#000';
+      const lx = m.x + dx * 84, ly = m.y + dy * 84;
+      ctx.strokeText(Math.round(cur.angle) + '°', lx, ly); ctx.fillText(Math.round(cur.angle) + '°', lx, ly);
+    }
+  }
+  ctx.restore();
+}
+
+function drawOffscreen(ctx, pr) {
+  const x = clamp(pr.x, 14, W - 14);
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,80,60,0.9)'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+  poly(ctx, [x, 4, x - 9, 20, x + 9, 20]); ctx.fill(); ctx.stroke();
+  ctx.font = "12px 'Jua', sans-serif"; ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
+  ctx.fillText(Math.round(-pr.y) + 'm', x, 34);
+  ctx.restore();
+}
+
+/* ---------------- HUD ---------------- */
+let hudCache = {};
+function updateHud(force) {
+  const p = curPlayer();
+  if (!p) return;
+  const c = G.ctl, T = TANKS[p.tank];
+  const live = (!c && G.live && G.turn && G.live.actor === p.id && G.live.no === G.turn.no) ? G.live : null;
+  const weapon = c ? c.weapon : live ? live.weapon : 0;
+  const power = c ? c.power : live ? live.power : 0;
+  const fuel = c ? c.fuel / T.fuel : 1;
+  const set = (id, v, fn) => { if (force || hudCache[id] !== v) { hudCache[id] = v; fn(v); } };
+  set('name', p.id + p.name, () => { $('#hud-name').textContent = p.name; $('#hud-name').style.color = p.pc.c; $('#hud-tank').textContent = T.name; });
+  set('hp', Math.round(p.hp), v => { $('#hud-hp').style.width = (v / p.maxHp * 100) + '%'; $('#hud-hp-t').textContent = v + ' / ' + p.maxHp; });
+  set('ss', Math.floor(p.ss), v => { $('#hud-ss').style.width = v + '%'; $('#hud-ss').parentElement.classList.toggle('full', v >= 100); });
+  set('pw', Math.round(power * 2) / 2, v => { $('#hud-power').style.width = v + '%'; $('#hud-power-t').textContent = Math.round(v); });
+  set('lp', p.lastPower, v => { const b = $('#hud-lastpower'); b.style.display = v == null ? 'none' : 'block'; if (v != null) b.style.left = v + '%'; });
+  set('fuel', Math.round(fuel * 200), v => { $('#hud-move').style.width = (v / 2) + '%'; });
+  set('wind', G.wind, v => {
+    $('#wind-l').style.width = (v < 0 ? -v * 10 : 0) + '%'; $('#wind-r').style.width = (v > 0 ? v * 10 : 0) + '%';
+    $('#wind-t').textContent = windText(v);
+  });
+  const tl = Math.max(0, Math.ceil(G.turn ? G.turn.timeLeft : 0));
+  set('timer', tl, v => { const el = $('#hud-timer'); el.textContent = v; el.classList.toggle('warn', v <= 5); });
+  const canCtl = !!(c && !p.cpu);
+  set('wp', `${p.id}|${weapon}|${canCtl}|${p.ss >= 100}`, () => {
+    $$('#hud-weapons .wbtn').forEach((b, i) => {
+      const w = T.weapons[i];
+      b.querySelector('.wn').textContent = w.name;
+      b.querySelector('.wd').textContent = w.strike ? '특수' : ('DMG ' + (w.dmg * (w.count || w.splitN || 1)));
+      b.classList.toggle('sel', i === weapon);
+      b.classList.toggle('locked', i === 2 && p.ss < 100);
+      b.disabled = !canCtl;
+    });
+  });
+  set('mine', canCtl, v => { $('#hud').classList.toggle('mine', v); $('#touch').classList.toggle('active', v); });
+  set('ang', Math.round(p.angle) * p.facing, () => drawAngleDial(p));
+  drawPortrait(p);
+  set('plist', G.players.map(q => q.id + Math.round(q.hp) + q.alive + (q === p) + Math.floor(q.ss)).join(), renderPlist);
+}
+
+function renderPlist() {
+  const cur = curPlayer();
+  $('#plist').innerHTML = G.players.map(q => `
+    <div class="pl ${q.alive ? '' : 'dead'} ${q === cur ? 'cur' : ''}" style="--pc:${q.pc.c}">
+      <span class="chip"></span><span class="nm">${esc(q.name)}${q.cpu ? ' <small>CPU</small>' : ''}${G.teamMode && q.team ? ` <small style="color:${TEAM_COLORS[q.team]}">${TEAM_NAMES[q.team]}</small>` : ''}</span>
+      <span class="tk">${TANKS[q.tank].name}</span>
+      <span class="hpb"><i style="width:${q.hp / q.maxHp * 100}%"></i></span>
+      ${q.ss >= 100 && q.alive ? '<span class="ssb">SS</span>' : ''}
+    </div>`).join('');
+}
+
+function drawAngleDial(p) {
+  const cv = $('#hud-angle'), ctx = cv.getContext('2d'), s = cv.width;
+  ctx.clearRect(0, 0, s, s);
+  const cx = p.facing > 0 ? s * 0.18 : s * 0.82, cy = s * 0.82, r = s * 0.66, f = p.facing;
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.06)';
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, f > 0 ? -Math.PI / 2 : Math.PI, f > 0 ? 0 : Math.PI * 1.5); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.5;
+  for (let a = 0; a <= 90; a += 10) {
+    const rad = a * Math.PI / 180, l = a % 30 === 0 ? 10 : 5;
+    ctx.beginPath(); ctx.moveTo(cx + f * Math.cos(rad) * r, cy - Math.sin(rad) * r); ctx.lineTo(cx + f * Math.cos(rad) * (r - l), cy - Math.sin(rad) * (r - l)); ctx.stroke();
+  }
+  const rad = p.angle * Math.PI / 180;
+  ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3.5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + f * Math.cos(rad) * (r - 4), cy - Math.sin(rad) * (r - 4)); ctx.stroke();
+  ctx.fillStyle = '#ffd23f'; circle(ctx, cx, cy, 5); ctx.fill();
+  ctx.restore();
+  $('#hud-angle-t').textContent = Math.round(p.angle) + '°';
+}
+
+function drawPortrait(p) {
+  const cv = $('#hud-portrait'), ctx = cv.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
+  const g = ctx.createRadialGradient(cv.width / 2, cv.height * 0.7, 5, cv.width / 2, cv.height * 0.7, cv.width * 0.7);
+  g.addColorStop(0, shade(p.pc.c, 0.2)); g.addColorStop(1, p.pc.d);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, cv.width, cv.height);
+  drawTank(ctx, { tank: p.tank, pc: p.pc, x: cv.width / 2, y: cv.height * 0.86, angle: p.angle, facing: 1, tilt: 0, t: G.t, tread: p.tread, recoil: p.recoil, hurtT: p.hurtT, dead: !p.alive, hpr: p.hp / p.maxHp, s: cv.width / 70, seedOff: p.seedOff, active: true });
+}
+
+/* ---------------- UI: 배너 / 토스트 ---------------- */
+let bannerTimer = null;
+function banner(title, sub, color) {
+  if (G.attract) return;
+  const b = $('#banner');
+  b.innerHTML = `<div class="bt" style="${color ? `color:${color}` : ''}">${esc(title)}</div>${sub ? `<div class="bs">${esc(sub)}</div>` : ''}`;
+  b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+  clearTimeout(bannerTimer); bannerTimer = setTimeout(() => b.classList.remove('show'), 1800);
+}
+function toast(msg) {
+  const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
+  $('#toasts').appendChild(t); setTimeout(() => t.remove(), 3200);
+}
+function setNetStatus(ok, msg) {
+  const el = $('#net'); if (!el) return;
+  el.className = ok ? 'ok' : 'bad'; el.title = ok ? '서버 연결됨' : ('연결 문제: ' + (msg || ''));
+}
+</script>
