@@ -1,0 +1,253 @@
+<script>
+/* =========================================================
+ *  Core: 상수, 유틸, 탱크/무기 데이터, 사운드
+ * ========================================================= */
+'use strict';
+const W = 1600, H = 900;          // 월드 크기(논리 픽셀)
+const SEA = H - 26;               // 이 아래로 떨어지면 추락(사망)
+const GRAV = 420;                 // 중력 px/s^2
+const VMAX = 880;                 // 파워 100일 때 초기 속도
+const WIND_ACC = 14;              // 바람 1칸당 가속도
+const TURN_TIME = 25;             // 턴 제한 시간(초)
+const SIM_DT = 1 / 120;           // 물리 스텝
+const TANK_HIT_R = 21;            // 탱크 피격 반경
+const TANK_SCALE = 1.2;           // 탱크 그림/포구 크기 배율
+const SKIP_DELAY = 500;
+
+const PCOLORS = [
+  { name: '레드',  c: '#ff5252', d: '#a8182a', l: '#ffb3b3' },
+  { name: '블루',  c: '#3fa7ff', d: '#1a57a8', l: '#b8dcff' },
+  { name: '그린',  c: '#4bdc72', d: '#1d8440', l: '#baf5c9' },
+  { name: '옐로',  c: '#ffd23f', d: '#b58400', l: '#fff0b3' }
+];
+const TEAM_NAMES = ['개인', 'A팀', 'B팀'];
+const TEAM_COLORS = ['#cfd8e3', '#ff7a59', '#4fc3ff'];
+
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const rand = (a, b) => a + Math.random() * (b - a);
+const $ = (s, el) => (el || document).querySelector(s);
+const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function hash2(x, y, s) {
+  let h = (x * 374761393 + y * 668265263 + s * 1442695041) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+function vnoise(x, y, s) {
+  const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  const a = hash2(xi, yi, s), b = hash2(xi + 1, yi, s), c = hash2(xi, yi + 1, s), d = hash2(xi + 1, yi + 1, s);
+  return lerp(lerp(a, b, u), lerp(c, d, u), v);
+}
+function fbm(x, y, s, oct) {
+  let v = 0, amp = 0.5, f = 1;
+  for (let i = 0; i < (oct || 4); i++) { v += vnoise(x * f, y * f, s + i * 17) * amp; f *= 2; amp *= 0.5; }
+  return v;
+}
+function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+function shade(hex, amt) {
+  const [r, g, b] = hexToRgb(hex);
+  const f = v => clamp(Math.round(amt >= 0 ? v + (255 - v) * amt : v * (1 + amt)), 0, 255);
+  return `rgb(${f(r)},${f(g)},${f(b)})`;
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+/* ---------------------------------------------------------
+ *  탱크 & 무기 데이터
+ *  무기 속성
+ *   dmg,r        : 데미지, 폭발(지형 파괴) 반경
+ *   spr          : 탄 모양 (shell/mega/missile/plasma/drill/ball/ice/bomb/bomblet/icicle)
+ *   windMul      : 바람 영향 배율, gravMul: 중력 배율, speedMul: 속도 배율
+ *   count/spread : 동시에 여러 발(각도 간격, 도)
+ *   seq          : 연속 발사 간격(초)
+ *   split        : 'apex'(최고점에서 분열) | 'impact'(착탄시 튕겨 분열), splitN, splitV
+ *   bounce       : 튕기는 횟수, drill: 지형 관통 거리(px)
+ *   homing       : 하강 시 가장 가까운 적 추적
+ *   strike       : 'orbital'(위성 레이저) | 'air'(폭격기) | 'blizzard'(고드름 비)
+ *   mound        : 착탄 지점에 얼음 지형 생성(반경)
+ *   freeze       : 맞은 적에게 추가되는 딜레이
+ *   delay        : 발사 후 내 턴 딜레이
+ * --------------------------------------------------------- */
+const TANKS = {
+  cannon: {
+    name: '캐논', en: 'CANNON', hp: 1100, fuel: 90,
+    c1: '#7a9a3c', c2: '#4b6523', c3: '#d8c46a',
+    desc: '두꺼운 장갑의 중전차. 한 방이 묵직하다.',
+    stat: { atk: 4, def: 5, mov: 2, tec: 1 },
+    weapons: [
+      { name: '철갑탄', spr: 'shell', dmg: 230, r: 34, delay: 640, fx: 'fire' },
+      { name: '3연 산탄', spr: 'shell', dmg: 118, r: 26, count: 3, spread: 5, delay: 720, fx: 'fire' },
+      { name: '메가 캐논', spr: 'mega', dmg: 460, r: 70, delay: 900, fx: 'mega', ss: true }
+    ]
+  },
+  missile: {
+    name: '미사일', en: 'MISSILE', hp: 1000, fuel: 110,
+    c1: '#3b64b8', c2: '#22396e', c3: '#e8eef8',
+    desc: '바람의 영향을 절반만 받는 정밀 미사일.',
+    stat: { atk: 3, def: 3, mov: 4, tec: 3 },
+    weapons: [
+      { name: '크루즈 미사일', spr: 'missile', dmg: 210, r: 30, windMul: 0.5, delay: 620, fx: 'fire' },
+      { name: '더블 미사일', spr: 'missile', dmg: 128, r: 25, windMul: 0.5, count: 2, seq: 0.22, delay: 700, fx: 'fire' },
+      { name: '유도 미사일', spr: 'missile', dmg: 380, r: 44, windMul: 0.5, homing: true, delay: 880, fx: 'mega', ss: true }
+    ]
+  },
+  laser: {
+    name: '레이저', en: 'LASER', hp: 900, fuel: 100,
+    c1: '#e9e4f7', c2: '#8a6cc9', c3: '#d24dff',
+    desc: '바람을 무시하는 플라즈마. 위성 레이저가 필살기.',
+    stat: { atk: 4, def: 2, mov: 3, tec: 4 },
+    weapons: [
+      { name: '플라즈마탄', spr: 'plasma', dmg: 190, r: 26, windMul: 0, delay: 600, fx: 'plasma' },
+      { name: '드릴 빔', spr: 'drill', dmg: 225, r: 30, windMul: 0.3, drill: 90, delay: 700, fx: 'plasma' },
+      { name: '위성 레이저', spr: 'plasma', dmg: 40, r: 14, windMul: 0, strike: 'orbital', sdmg: 420, sr: 30, delay: 920, fx: 'plasma', ss: true }
+    ]
+  },
+  multi: {
+    name: '멀티', en: 'MULTI', hp: 950, fuel: 100,
+    c1: '#f08a24', c2: '#9c4c0c', c3: '#2b2b2b',
+    desc: '공중에서 쪼개지는 분열탄으로 넓은 범위를 제압.',
+    stat: { atk: 3, def: 3, mov: 3, tec: 3 },
+    weapons: [
+      { name: '트리플 스플릿', spr: 'shell', dmg: 96, r: 24, split: 'apex', splitN: 3, splitV: 55, delay: 640, fx: 'fire' },
+      { name: '바운스탄', spr: 'ball', dmg: 205, r: 30, bounce: 2, delay: 660, fx: 'fire' },
+      { name: '클러스터', spr: 'mega', dmg: 105, r: 27, split: 'apex', splitN: 7, splitV: 48, delay: 900, fx: 'fire', ss: true }
+    ]
+  },
+  ice: {
+    name: '아이스', en: 'ICE', hp: 1000, fuel: 95,
+    c1: '#8fe3ff', c2: '#2f8fbf', c3: '#ffffff',
+    desc: '적을 얼려 턴을 늦춘다. 빙벽으로 지형도 만든다.',
+    stat: { atk: 2, def: 4, mov: 3, tec: 4 },
+    weapons: [
+      { name: '아이스 샤드', spr: 'ice', dmg: 185, r: 28, freeze: 120, delay: 620, fx: 'ice' },
+      { name: '빙벽', spr: 'ice', dmg: 70, r: 16, mound: 50, delay: 560, fx: 'ice' },
+      { name: '블리자드', spr: 'ice', dmg: 30, r: 12, strike: 'blizzard', sdmg: 150, sr: 30, freeze: 150, delay: 900, fx: 'ice', ss: true }
+    ]
+  },
+  air: {
+    name: '에어', en: 'AIR', hp: 950, fuel: 125,
+    c1: '#e8c547', c2: '#8c6d12', c3: '#5a6570',
+    desc: '기동력 최고. 필살기로 폭격기를 호출한다.',
+    stat: { atk: 4, def: 2, mov: 5, tec: 2 },
+    weapons: [
+      { name: '투하 폭탄', spr: 'bomb', dmg: 215, r: 34, gravMul: 1.08, delay: 640, fx: 'fire' },
+      { name: '집속탄', spr: 'bomb', dmg: 80, r: 20, split: 'impact', splitN: 4, splitV: 95, delay: 700, fx: 'fire' },
+      { name: '폭격기 호출', spr: 'bomb', dmg: 20, r: 10, strike: 'air', sdmg: 135, sr: 30, delay: 920, fx: 'fire', ss: true }
+    ]
+  }
+};
+const TANK_IDS = Object.keys(TANKS);
+
+const THEMES = {
+  grass: {
+    name: '초원', sky: ['#5fb4ff', '#a9dcff', '#e6f6ff'], far: '#8fb7d9', mid: '#6d9f7c',
+    top: ['#5fcf3a', '#3e9e25'], soil: ['#9b6a3c', '#7a4e2b', '#5e3a1f'], rock: '#6b5a4a',
+    sea: ['#2f8fd6', '#1c5f9e'], sun: 'sun', cloud: 'rgba(255,255,255,0.9)', deco: 'flower'
+  },
+  desert: {
+    name: '사막', sky: ['#ff9e5e', '#ffcf8a', '#fff1cf'], far: '#e0a878', mid: '#c98c5a',
+    top: ['#f4d27c', '#e0b458'], soil: ['#d9a44f', '#b97f36', '#8f5a24'], rock: '#8a6a45',
+    sea: ['#3aa3a8', '#1e6c73'], sun: 'sun', cloud: 'rgba(255,240,220,0.8)', deco: 'cactus'
+  },
+  snow: {
+    name: '설원', sky: ['#9fc4e8', '#d4e6f6', '#f4f9ff'], far: '#b7cde2', mid: '#93aecb',
+    top: ['#ffffff', '#dbe9f5'], soil: ['#8aa4bd', '#6b839c', '#4c6078'], rock: '#56657a',
+    sea: ['#5d9fd0', '#2e5f8c'], sun: 'pale', cloud: 'rgba(255,255,255,0.95)', deco: 'pine', snow: true
+  },
+  night: {
+    name: '달밤', sky: ['#0b1030', '#1d2a5c', '#3b3f7a'], far: '#1e2550', mid: '#262f63',
+    top: ['#7b6cff', '#4a3fb0'], soil: ['#3a3170', '#2a2255', '#1c173d'], rock: '#141030',
+    sea: ['#1b2f6b', '#0c1740'], sun: 'moon', cloud: 'rgba(150,160,220,0.35)', deco: 'crystal', stars: true
+  },
+  volcano: {
+    name: '화산', sky: ['#2a0f12', '#6b1d15', '#c2461c'], far: '#4a1a18', mid: '#3a1512',
+    top: ['#5c4a44', '#3d302c'], soil: ['#3a2c28', '#2a1f1c', '#1a1210'], rock: '#120c0a',
+    sea: ['#ff7a1a', '#c2300b'], sun: 'none', cloud: 'rgba(60,40,40,0.55)', deco: 'ember', lava: true
+  }
+};
+const THEME_IDS = Object.keys(THEMES);
+
+/* ---------------------------------------------------------
+ *  사운드 (WebAudio 합성: 외부 파일 없음)
+ * --------------------------------------------------------- */
+const Sound = {
+  ctx: null, master: null, muted: false, noiseBuf: null, moveNode: null,
+  init() {
+    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
+    try {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      this.master = this.ctx.createGain(); this.master.gain.value = 0.5; this.master.connect(this.ctx.destination);
+      const len = this.ctx.sampleRate * 2, b = this.ctx.createBuffer(1, len, this.ctx.sampleRate), d = b.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      this.noiseBuf = b;
+    } catch (e) { this.ctx = null; }
+  },
+  setMuted(m) { this.muted = m; if (this.master) this.master.gain.value = m ? 0 : 0.5; },
+  noise(dur, freq, q, vol, type) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime, s = this.ctx.createBufferSource(), f = this.ctx.createBiquadFilter(), g = this.ctx.createGain();
+    s.buffer = this.noiseBuf; f.type = type || 'lowpass'; f.frequency.setValueAtTime(freq, t); f.frequency.exponentialRampToValueAtTime(Math.max(40, freq * 0.2), t + dur);
+    f.Q.value = q || 1; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    s.connect(f); f.connect(g); g.connect(this.master); s.start(t, Math.random()); s.stop(t + dur + 0.05);
+  },
+  tone(f0, f1, dur, vol, type, delay) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime + (delay || 0), o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = type || 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t + dur + 0.05);
+  },
+  play(name, k) {
+    if (!this.ctx || this.muted || this.silent) return;
+    k = k || 1;
+    switch (name) {
+      case 'fire': this.noise(0.35, 1800, 1, 0.5); this.tone(160, 40, 0.3, 0.5, 'triangle'); break;
+      case 'mega': this.noise(0.6, 1200, 1, 0.7); this.tone(120, 30, 0.6, 0.7, 'sawtooth'); break;
+      case 'missile': this.noise(0.8, 3000, 2, 0.25, 'bandpass'); this.tone(300, 900, 0.4, 0.12, 'sawtooth'); break;
+      case 'plasma': this.tone(1400, 200, 0.35, 0.25, 'sawtooth'); this.tone(700, 1800, 0.2, 0.15, 'square'); break;
+      case 'ice': this.tone(2200, 1200, 0.3, 0.15, 'triangle'); this.tone(3300, 2600, 0.25, 0.1, 'sine', 0.05); break;
+      case 'boom': this.noise(0.5 + 0.5 * k, 900 + 400 * k, 0.8, 0.6 + 0.3 * k); this.tone(90, 30, 0.5 + 0.3 * k, 0.6, 'sine'); break;
+      case 'iceboom': this.noise(0.5, 5000, 3, 0.35, 'highpass'); for (let i = 0; i < 4; i++) this.tone(rand(1800, 3200), rand(900, 1500), 0.3, 0.08, 'triangle', i * 0.05); break;
+      case 'zap': this.tone(2400, 80, 0.9, 0.35, 'sawtooth'); this.noise(0.9, 4000, 2, 0.3, 'bandpass'); break;
+      case 'splash': this.noise(0.6, 2500, 0.7, 0.35, 'bandpass'); break;
+      case 'bounce': this.tone(500, 180, 0.12, 0.25, 'square'); break;
+      case 'drill': this.noise(0.08, 1500, 4, 0.12, 'bandpass'); break;
+      case 'plane': this.tone(90, 70, 2.2, 0.18, 'sawtooth'); this.noise(2.2, 600, 1, 0.12); break;
+      case 'hit': this.tone(220, 110, 0.15, 0.25, 'square'); break;
+      case 'turn': this.tone(660, 660, 0.12, 0.2, 'triangle'); this.tone(990, 990, 0.18, 0.2, 'triangle', 0.12); break;
+      case 'myturn': [523, 659, 784, 1046].forEach((f, i) => this.tone(f, f, 0.14, 0.2, 'triangle', i * 0.08)); break;
+      case 'click': this.tone(900, 700, 0.05, 0.12, 'square'); break;
+      case 'tick': this.tone(1200, 1200, 0.05, 0.12, 'square'); break;
+      case 'win': [523, 659, 784, 659, 784, 1046].forEach((f, i) => this.tone(f, f, 0.2, 0.22, 'triangle', i * 0.14)); break;
+      case 'lose': [392, 349, 311, 262].forEach((f, i) => this.tone(f, f * 0.98, 0.3, 0.2, 'triangle', i * 0.2)); break;
+      case 'die': this.noise(1.2, 700, 0.8, 0.8); this.tone(200, 25, 1.2, 0.5, 'sawtooth'); break;
+      case 'ss': [440, 554, 659, 880].forEach((f, i) => this.tone(f, f * 1.5, 0.25, 0.15, 'sawtooth', i * 0.06)); break;
+    }
+  },
+  charge(p) {
+    if (!this.ctx || this.muted || this.silent) return;
+    this.tone(200 + p * 8, 210 + p * 8, 0.05, 0.05, 'square');
+  },
+  moving(on) {
+    if (!this.ctx) return;
+    if (on && !this.moveNode && !this.muted && !this.silent) {
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain(), f = this.ctx.createBiquadFilter();
+      o.type = 'sawtooth'; o.frequency.value = 55; f.type = 'lowpass'; f.frequency.value = 260; g.gain.value = 0.12;
+      o.connect(f); f.connect(g); g.connect(this.master); o.start();
+      this.moveNode = { o, g };
+    } else if (!on && this.moveNode) {
+      const n = this.moveNode; this.moveNode = null;
+      n.g.gain.setTargetAtTime(0, this.ctx.currentTime, 0.05); n.o.stop(this.ctx.currentTime + 0.3);
+    }
+  }
+};
+</script>

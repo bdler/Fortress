@@ -1,0 +1,426 @@
+<script>
+/* =========================================================
+ *  Sim: 지형 마스크 + 포탄/탱크 물리 (결정적 시뮬레이션)
+ *  같은 입력이면 같은 결과 → 쏜 사람이 결과를 계산해 서버에 보내고
+ *  다른 사람은 같은 시뮬레이션을 재생한 뒤 결과로 보정한다.
+ * ========================================================= */
+
+/** 지형 마스크 생성: 1 = 땅 */
+function genTerrain(seed) {
+  const rng = mulberry32(seed);
+  const mask = new Uint8Array(W * H);
+  const heights = new Float32Array(W);
+  const base = H * (0.52 + rng() * 0.1);
+  const waves = [];
+  for (let i = 0; i < 4; i++) waves.push({ a: 20 + rng() * 55 / (i + 1) * 1.6, f: (0.002 + rng() * 0.004) * (i + 1), p: rng() * Math.PI * 2 });
+  const bumps = [];
+  const nb = 2 + Math.floor(rng() * 3);
+  for (let i = 0; i < nb; i++) bumps.push({ x: 150 + rng() * (W - 300), w: 60 + rng() * 140, a: (rng() < 0.55 ? -1 : 1) * (60 + rng() * 150) });
+  const ns = Math.floor(rng() * 10000);
+  for (let x = 0; x < W; x++) {
+    let h = base;
+    for (const w of waves) h += Math.sin(x * w.f + w.p) * w.a;
+    for (const b of bumps) h += b.a * Math.exp(-((x - b.x) * (x - b.x)) / (2 * b.w * b.w));
+    h += (fbm(x * 0.012, 0.5, ns, 3) - 0.5) * 50;
+    // 가장자리는 살짝 높여 맵 밖으로 굴러떨어지지 않게
+    const edge = Math.min(x, W - 1 - x);
+    if (edge < 80) h -= (80 - edge) * 0.9;
+    heights[x] = clamp(h, H * 0.26, SEA - 70);
+  }
+  for (let x = 0; x < W; x++) {
+    const top = Math.round(heights[x]);
+    for (let y = top; y < H; y++) mask[y * W + x] = 1;
+  }
+  // 공중 섬
+  const islands = Math.floor(rng() * 3);
+  for (let i = 0; i < islands; i++) {
+    const cx = 260 + rng() * (W - 520), rx = 60 + rng() * 70, ry = 16 + rng() * 14;
+    const cy = heights[Math.round(cx)] - 170 - rng() * 110;
+    if (cy < 120) continue;
+    for (let x = Math.floor(cx - rx); x <= cx + rx; x++) {
+      const dx = (x - cx) / rx;
+      const topY = cy - ry * 0.35 * Math.sqrt(Math.max(0, 1 - dx * dx)) - (vnoise(x * 0.08, 3, ns) - 0.5) * 4;
+      const botY = cy + ry * Math.sqrt(Math.max(0, 1 - dx * dx)) * (0.9 + vnoise(x * 0.05, 9, ns) * 0.9);
+      for (let y = Math.round(topY); y < botY; y++) if (y > 0 && y < H && x >= 0 && x < W) mask[y * W + x] = 1;
+    }
+  }
+  // 동굴 (지형 속 빈 공간)
+  const caves = Math.floor(rng() * 2);
+  for (let i = 0; i < caves; i++) {
+    const cx = 250 + rng() * (W - 500), rx = 50 + rng() * 60, ry = 18 + rng() * 14;
+    let deepest = 0; // 동굴 범위에서 가장 낮은 지표(= 가장 큰 y)
+    for (let x = Math.floor(cx - rx); x <= cx + rx; x++) deepest = Math.max(deepest, heights[clamp(x, 0, W - 1)]);
+    const cy = deepest + ry + 30 + rng() * 40;
+    if (cy + ry > SEA - 30) continue;
+    for (let y = Math.floor(cy - ry); y <= cy + ry; y++) for (let x = Math.floor(cx - rx); x <= cx + rx; x++) {
+      const d = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2;
+      if (d < 1 && x >= 0 && x < W) mask[y * W + x] = 0;
+    }
+  }
+  return { mask, heights };
+}
+
+function spawnXs(seed, n) {
+  const rng = mulberry32((seed ^ 0x5bd1e995) >>> 0);
+  const margin = 110, segW = (W - margin * 2) / n;
+  const order = [];
+  for (let i = 0; i < n; i++) order.push(i);
+  for (let i = n - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+  return order.map(s => Math.round(margin + segW * s + segW * (0.25 + rng() * 0.5)));
+}
+
+class TerrainMask {
+  constructor(mask) { this.mask = mask; this.ops = []; this.painter = null; }
+  clone() { return new TerrainMask(this.mask.slice()); }
+  crater(x, y, r) {
+    x = Math.round(x); y = Math.round(y); r = Math.round(r);
+    const m = this.mask, r2 = r * r;
+    for (let yy = Math.max(0, y - r); yy <= Math.min(H - 1, y + r); yy++) {
+      const dy = yy - y, span = Math.floor(Math.sqrt(r2 - dy * dy));
+      const x0 = Math.max(0, x - span), x1 = Math.min(W - 1, x + span);
+      m.fill(0, yy * W + x0, yy * W + x1 + 1);
+    }
+    this.ops.push(['c', x, y, r]);
+    if (this.painter) this.painter.crater(x, y, r);
+  }
+  mound(x, y, r) {
+    x = Math.round(x); y = Math.round(y); r = Math.round(r);
+    const m = this.mask, r2 = r * r;
+    for (let yy = Math.max(0, y - r); yy <= Math.min(H - 1, y + r); yy++) {
+      const dy = yy - y, span = Math.floor(Math.sqrt(r2 - dy * dy));
+      const x0 = Math.max(0, x - span), x1 = Math.min(W - 1, x + span);
+      m.fill(1, yy * W + x0, yy * W + x1 + 1);
+    }
+    this.ops.push(['m', x, y, r]);
+    if (this.painter) this.painter.mound(x, y, r);
+  }
+  apply(op) { if (op[0] === 'c') this.crater(op[1], op[2], op[3]); else this.mound(op[1], op[2], op[3]); }
+}
+
+function isSolid(m, x, y) {
+  x |= 0; y |= 0;
+  if (x < 0 || x >= W || y < 0 || y >= H) return false;
+  return m[y * W + x] === 1;
+}
+function standing(m, x, y) {
+  const yy = Math.round(y);
+  return isSolid(m, x - 9, yy) || isSolid(m, x - 4, yy) || isSolid(m, x, yy) || isSolid(m, x + 4, yy) || isSolid(m, x + 9, yy);
+}
+function groundNear(m, x, y) {
+  for (let yy = Math.round(y) - 22; yy < y + 26; yy++) if (isSolid(m, x, yy)) return yy;
+  return y;
+}
+function surfaceY(m, x) {
+  for (let y = 0; y < H; y++) if (isSolid(m, x, y)) return y;
+  return H;
+}
+function calcTilt(m, p) {
+  const yl = groundNear(m, p.x - 12, p.y), yr = groundNear(m, p.x + 12, p.y);
+  return clamp(Math.atan2(yr - yl, 24), -0.45, 0.45);
+}
+/** 포구 위치 (탱크 기울기 포함) */
+function muzzle(m, p, angleDeg) {
+  const t = calcTilt(m, p), f = p.facing, px = -3 * f * TANK_SCALE, py = -25 * TANK_SCALE;
+  const cx = p.x + Math.cos(t) * px - Math.sin(t) * py;
+  const cy = p.y + Math.sin(t) * px + Math.cos(t) * py;
+  const a = angleDeg * Math.PI / 180;
+  const L = 30 * TANK_SCALE;
+  return { x: cx + f * Math.cos(a) * L, y: cy - Math.sin(a) * L, tilt: t };
+}
+
+/** 탱크 이동 (오르막 5px까지) → 이동한 거리 */
+function moveTank(m, p, dir, speed) {
+  if (!standing(m, p.x, p.y)) return 0;
+  p.facing = dir;
+  const nx = clamp(p.x + dir * speed, 18, W - 18);
+  let ny = Math.round(p.y);
+  if (isSolid(m, nx + dir * 16, ny - 9) && isSolid(m, nx + dir * 16, ny - 17)) return 0; // 가파른 벽
+  if (isSolid(m, nx, ny - 1)) {
+    let k = 0;
+    while (isSolid(m, nx, ny - 1) && k < 5) { ny--; k++; }
+    if (isSolid(m, nx, ny - 1)) return 0;
+  } else if (!isSolid(m, nx, ny)) {
+    let k = 0;
+    while (!isSolid(m, nx, ny) && k < 10) { ny++; k++; }
+    if (!isSolid(m, nx, ny)) return 0; // 낭떠러지: 걸어서 떨어질 수 없음
+  }
+  const d = Math.abs(nx - p.x);
+  p.x = nx; p.y = ny;
+  return d;
+}
+
+/* ---------------- 월드 ---------------- */
+
+function makeSimPlayer(src) {
+  return {
+    id: src.id, tank: src.tank, x: src.x, y: src.y, vy: 0, facing: src.facing, angle: src.angle,
+    hp: src.hp, maxHp: src.maxHp, alive: src.alive, sunk: !!src.sunk, ss: src.ss || 0, team: src.team || 0,
+    freeze: 0, falling: false, fallFrom: src.y, dealt: 0
+  };
+}
+
+function makeWorld(terrain, players, wind, seed, fx) {
+  return { terrain, players, projs: [], pending: [], t: 0, wind, rng: mulberry32(seed >>> 0), fx: fx || null, lastEventT: 0, pid: 0 };
+}
+
+function findP(world, id) { return world.players.find(p => p.id === id); }
+
+/** 발사 */
+function fireShot(world, shooterId, wIdx, angle, power) {
+  const p = findP(world, shooterId), w = TANKS[p.tank].weapons[wIdx];
+  const n = w.count || 1;
+  const speed = power / 100 * VMAX * (w.speedMul || 1);
+  const mz = muzzle(world.terrain.mask, p, angle);
+  for (let i = 0; i < n; i++) {
+    const a = (angle + (w.spread ? (i - (n - 1) / 2) * w.spread : 0)) * Math.PI / 180;
+    const pr = { x: mz.x, y: mz.y, vx: p.facing * Math.cos(a) * speed, vy: -Math.sin(a) * speed, w, owner: p.id };
+    if (w.seq && i > 0) world.pending.push({ t: world.t + i * w.seq, kind: 'proj', proj: pr, muzzleFx: true });
+    else addProj(world, pr);
+  }
+  if (w.ss) p.ss = 0;
+  if (world.fx) world.fx.fire(p, w, mz);
+}
+
+function addProj(world, pr) {
+  pr.id = ++world.pid; pr.age = 0; pr.bounces = pr.w.bounce || 0; pr.drill = pr.w.drill || 0;
+  pr.drilling = false; pr.dead = false; pr.trail = [];
+  world.projs.push(pr);
+  if (world.fx) world.fx.spawn(pr);
+}
+
+function stepWorld(world, dt) {
+  world.t += dt;
+  // 예약된 이벤트 (연발, 폭격, 위성 레이저 등)
+  if (world.pending.length) {
+    const due = world.pending.filter(e => e.t <= world.t);
+    if (due.length) {
+      world.pending = world.pending.filter(e => e.t > world.t);
+      for (const e of due) runPending(world, e);
+    }
+  }
+  for (const pr of world.projs) if (!pr.dead) stepProj(world, pr, dt);
+  world.projs = world.projs.filter(p => !p.dead);
+  for (const p of world.players) settlePlayer(world, p, dt);
+}
+
+function runPending(world, e) {
+  world.lastEventT = world.t;
+  if (e.kind === 'proj') {
+    addProj(world, Object.assign({}, e.proj));
+    if (e.muzzleFx && world.fx) world.fx.fire(findP(world, e.proj.owner), e.proj.w, e.proj);
+  } else if (e.kind === 'orbital') {
+    const m = world.terrain.mask, w = e.w, x = e.x;
+    const top = Math.min(surfaceY(m, x), SEA);
+    for (let y = top - 10; y < Math.min(top + 190, SEA + 20); y += 16) world.terrain.crater(x, y, w.sr);
+    for (const p of world.players) {
+      if (p.alive && Math.abs(p.x - x) < w.sr + 14) applyDamage(world, p, w.sdmg, e.owner, w);
+    }
+    if (world.fx) world.fx.beam(x, top);
+  }
+}
+
+function scheduleStrike(world, x, y, w, owner) {
+  const r = world.rng;
+  if (w.strike === 'orbital') {
+    world.pending.push({ t: world.t + 0.9, kind: 'orbital', x: Math.round(x), w, owner });
+    if (world.fx) world.fx.target(x, y, 0.9);
+  } else if (w.strike === 'air') {
+    const dir = r() < 0.5 ? 1 : -1;
+    const bw = { name: '폭탄', spr: 'bomb', dmg: w.sdmg, r: w.sr, windMul: 0.25, fx: 'fire' };
+    for (let i = 0; i < 7; i++) {
+      const bx = x + dir * (-180 + i * 60) + (r() - 0.5) * 16;
+      world.pending.push({ t: world.t + 1.1 + i * 0.14, kind: 'proj', proj: { x: bx, y: -30, vx: dir * 70, vy: 80, w: bw, owner } });
+    }
+    if (world.fx) world.fx.plane(x, dir, 1.1);
+  } else if (w.strike === 'blizzard') {
+    const iw = { name: '고드름', spr: 'icicle', dmg: w.sdmg, r: w.sr, windMul: 0.15, freeze: Math.round(w.freeze / 3), fx: 'ice' };
+    for (let i = 0; i < 5; i++) {
+      const bx = x + (i - 2) * 48 + (r() - 0.5) * 20;
+      world.pending.push({ t: world.t + 0.7 + i * 0.2, kind: 'proj', proj: { x: bx, y: -40, vx: 0, vy: 260, w: iw, owner } });
+    }
+    if (world.fx) world.fx.storm(x);
+  }
+}
+
+function nearestEnemy(world, owner, x, y) {
+  const me = findP(world, owner);
+  let best = null, bd = 1e9;
+  for (const p of world.players) {
+    if (!p.alive || p.id === owner || (me && me.team && p.team === me.team)) continue;
+    const d = Math.hypot(p.x - x, p.y - y);
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best;
+}
+
+function stepProj(world, pr, dt) {
+  const w = pr.w, m = world.terrain.mask;
+  pr.age += dt;
+  pr.vx += world.wind * WIND_ACC * (w.windMul === undefined ? 1 : w.windMul) * dt;
+  pr.vy += GRAV * (w.gravMul || 1) * dt;
+  if (w.homing && pr.vy > 0 && pr.age > 0.4) {
+    const t = nearestEnemy(world, pr.owner, pr.x, pr.y);
+    if (t) {
+      const want = Math.atan2(t.y - 14 - pr.y, t.x - pr.x), cur = Math.atan2(pr.vy, pr.vx);
+      let diff = want - cur;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      const ang = cur + clamp(diff, -3.0 * dt, 3.0 * dt), sp = Math.max(Math.hypot(pr.vx, pr.vy), 380);
+      pr.vx = Math.cos(ang) * sp; pr.vy = Math.sin(ang) * sp;
+      pr.homingOn = true;
+    }
+  }
+  if (w.split === 'apex' && pr.vy >= 0 && pr.age > 0.12) {
+    pr.dead = true;
+    const n = w.splitN, cw = Object.assign({}, w, { split: null, spr: w.spr === 'mega' ? 'shell' : 'bomblet' });
+    for (let i = 0; i < n; i++) {
+      addProj(world, { x: pr.x, y: pr.y, vx: pr.vx + (i - (n - 1) / 2) * w.splitV, vy: pr.vy - 20 + (world.rng() - 0.5) * 30, w: cw, owner: pr.owner });
+    }
+    world.lastEventT = world.t;
+    if (world.fx) world.fx.split(pr);
+    return;
+  }
+  const ox = pr.x, oy = pr.y;
+  pr.x += pr.vx * dt; pr.y += pr.vy * dt;
+  if (world.fx) world.fx.trail(pr);
+  if (pr.x < -400 || pr.x > W + 400) { pr.dead = true; return; }
+  if (pr.y > SEA) { pr.dead = true; world.lastEventT = world.t; if (world.fx) world.fx.splash(pr.x); return; }
+  for (const p of world.players) {
+    if (!p.alive || (p.id === pr.owner && pr.age < 0.35)) continue;
+    if (Math.hypot(pr.x - p.x, pr.y - (p.y - 14)) < TANK_HIT_R) { explode(world, pr, pr.x, pr.y, p); return; }
+  }
+  if (isSolid(m, pr.x, pr.y)) {
+    if (pr.drill > 0) {
+      pr.drilling = true;
+      pr.drill -= Math.hypot(pr.vx, pr.vy) * dt;
+      pr.vx *= 0.99; pr.vy *= 0.99;
+      if (Math.floor(pr.age * 60) % 2 === 0) { world.terrain.crater(pr.x, pr.y, 10); if (world.fx) world.fx.drill(pr); }
+      if (pr.drill <= 0) explode(world, pr, pr.x, pr.y, null);
+      return;
+    }
+    if (pr.bounces > 0) {
+      let nx = 0, ny = 0;
+      for (let dy = -6; dy <= 6; dy += 2) for (let dx = -6; dx <= 6; dx += 2) if (isSolid(m, pr.x + dx, pr.y + dy)) { nx -= dx; ny -= dy; }
+      const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l;
+      if (!nx && !ny) ny = -1;
+      pr.x = ox; pr.y = oy;
+      const d = pr.vx * nx + pr.vy * ny;
+      if (d < 0) { pr.vx -= 2 * d * nx; pr.vy -= 2 * d * ny; }
+      pr.vx *= 0.62; pr.vy *= 0.62;
+      pr.bounces--;
+      world.lastEventT = world.t;
+      if (world.fx) world.fx.bounce(pr);
+      return;
+    }
+    if (w.split === 'impact') {
+      const n = w.splitN, cw = { name: '자탄', spr: 'bomblet', dmg: w.dmg, r: w.r, windMul: 0.6, fx: 'fire' };
+      explode(world, pr, ox, oy, null);
+      for (let i = 0; i < n; i++) {
+        addProj(world, { x: ox, y: oy - 4, vx: (i - (n - 1) / 2) * w.splitV + (world.rng() - 0.5) * 30, vy: -230 - world.rng() * 120, w: cw, owner: pr.owner });
+      }
+      return;
+    }
+    explode(world, pr, pr.x, pr.y, null);
+  }
+}
+
+function explode(world, pr, x, y, direct) {
+  const w = pr.w;
+  pr.dead = true;
+  world.lastEventT = world.t;
+  if (w.mound) world.terrain.mound(x, y, w.mound);
+  else world.terrain.crater(x, y, w.r);
+  if (world.fx) world.fx.explode(x, y, w.mound ? w.mound * 0.7 : w.r, w.fx || 'fire', !!w.mound);
+  damageArea(world, x, y, w.r, w.dmg, pr.owner, direct, w);
+  if (w.strike) scheduleStrike(world, x, y, w, pr.owner);
+}
+
+function damageArea(world, x, y, r, dmg, owner, direct, w) {
+  for (const p of world.players) {
+    if (!p.alive) continue;
+    const reach = r + TANK_HIT_R, d = Math.hypot(p.x - x, p.y - 14 - y);
+    let amt = 0;
+    if (p === direct) amt = dmg * 1.2;
+    else if (d < reach) amt = dmg * (0.3 + 0.7 * (1 - d / reach));
+    if (amt > 0) applyDamage(world, p, Math.round(amt), owner, w);
+  }
+}
+
+function applyDamage(world, p, amt, owner, w) {
+  if (!p.alive || amt <= 0) return;
+  amt = Math.min(amt, p.hp);
+  p.hp -= amt;
+  const o = findP(world, owner);
+  if (o && o !== p) { o.ss = Math.min(100, o.ss + amt * 0.12); o.dealt += amt; }
+  p.ss = Math.min(100, p.ss + amt * 0.06);
+  if (w && w.freeze) p.freeze += w.freeze;
+  if (world.fx) world.fx.damage(p, amt, w);
+  if (p.hp <= 0) killPlayer(world, p, false);
+}
+
+function killPlayer(world, p, drown) {
+  if (!p.alive) return;
+  p.alive = false; p.hp = 0;
+  world.lastEventT = world.t;
+  if (world.fx) world.fx.death(p, drown);
+}
+
+function settlePlayer(world, p, dt) {
+  if (p.sunk) return;
+  const m = world.terrain.mask;
+  let lift = 0;
+  while (isSolid(m, p.x, p.y - 1) && lift < 90) { p.y--; lift++; }
+  if (standing(m, p.x, p.y)) {
+    p.y = Math.round(p.y);
+    if (p.falling) {
+      p.falling = false;
+      const fall = p.y - p.fallFrom;
+      if (world.fx) world.fx.land(p, fall);
+      if (fall > 50 && p.alive) applyDamage(world, p, Math.min(160, Math.round((fall - 50) * 0.7)), null, null);
+      world.lastEventT = world.t;
+    }
+    p.vy = 0;
+    return;
+  }
+  if (!p.falling) { p.falling = true; p.fallFrom = p.y; p.vy = 0; }
+  p.vy = Math.min(p.vy + GRAV * dt, 900);
+  let ny = p.y + p.vy * dt;
+  for (let r = Math.floor(p.y) + 1; r <= Math.floor(ny); r++) {
+    if (standing(m, p.x, r)) { ny = r; break; }
+  }
+  p.y = ny;
+  if (p.y > SEA + 8) {
+    p.sunk = true; p.falling = false;
+    if (world.fx) world.fx.splash(p.x, true);
+    killPlayer(world, p, true);
+  }
+}
+
+function worldSettled(world) {
+  if (world.projs.length || world.pending.length) return false;
+  return world.players.every(p => p.sunk || (!p.falling && p.vy === 0));
+}
+
+/** 헤드리스로 끝까지 시뮬레이션 → 결과 */
+function simulateShot(terrain, players, params) {
+  const tm = terrain.clone();
+  const ps = players.map(makeSimPlayer);
+  const sp = findP({ players: ps }, params.pid);
+  sp.x = params.x; sp.y = params.y; sp.facing = params.facing; sp.angle = params.angle;
+  const world = makeWorld(tm, ps, params.wind, params.seed, null);
+  fireShot(world, params.pid, params.weapon, params.angle, params.power);
+  let steps = 0;
+  while (!worldSettled(world) && steps < 30 / SIM_DT) { stepWorld(world, SIM_DT); steps++; }
+  return shotResult(world, tm.ops);
+}
+
+function shotResult(world, ops) {
+  return {
+    ops: ops.slice(),
+    players: world.players.map(p => ({
+      id: p.id, x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10, hp: p.hp, alive: p.alive,
+      sunk: p.sunk, ss: Math.round(p.ss * 10) / 10, freeze: p.freeze, dealt: p.dealt
+    }))
+  };
+}
+</script>

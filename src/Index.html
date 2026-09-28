@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>포트리스 4인 대전</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&display=swap" rel="stylesheet">
+<?!= include('Styles'); ?>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- 타이틀 -->
+<section id="scr-title" class="screen">
+  <div class="logo">
+    <div class="logo-sub">TURN-BASED ARTILLERY BATTLE</div>
+    <h1 class="logo-main" data-text="FORTRESS">FORTRESS</h1>
+    <div class="logo-kr">포트리스 <b>4인 대전</b></div>
+  </div>
+  <div class="menu">
+    <button id="btn-local" class="btn big">🎮 로컬 대전 <small>한 PC에서 · CPU와 함께</small></button>
+    <button id="btn-online" class="btn big alt">🌐 온라인 대전 <small>최대 4명 · 방 코드로 입장</small></button>
+    <button id="btn-help" class="btn">❓ 조작법</button>
+  </div>
+  <div class="foot">HTML5 Canvas + Google Apps Script</div>
+</section>
+
+<!-- 로컬 로비 -->
+<section id="scr-lobby" class="screen">
+  <div class="panel lobby">
+    <div class="lobby-h"><button class="btn sm btn-back">◀ 메인</button><h2>로컬 대전 설정</h2><span></span></div>
+    <div class="slots" id="local-slots"></div>
+    <div class="lobby-opts">
+      <div class="opt"><label>맵</label><div class="maps" id="local-maps"></div></div>
+      <label class="tog"><input type="checkbox" id="local-team"><span></span>팀전</label>
+      <button id="local-start" class="btn big go">게임 시작 ▶</button>
+    </div>
+  </div>
+</section>
+
+<!-- 온라인 입장 -->
+<section id="scr-online" class="screen">
+  <div class="panel narrow">
+    <div class="lobby-h"><button class="btn sm btn-back">◀ 메인</button><h2>온라인 대전</h2><span></span></div>
+    <div id="on-unavail" class="notice">
+      온라인 대전은 이 게임을 <b>Google Apps Script 웹앱</b>으로 배포했을 때 사용할 수 있습니다.<br>
+      README의 배포 방법을 참고하세요. 지금은 <b>로컬 대전</b>을 즐겨보세요!
+    </div>
+    <div id="on-forms">
+      <label class="fl" for="on-name">닉네임</label>
+      <input id="on-name" maxlength="10" placeholder="닉네임 (최대 10자)">
+      <div class="two">
+        <div class="card"><h3>방 만들기</h3><p>새 방을 만들고 친구에게 4자리 코드를 알려주세요.</p><button id="on-create" class="btn go">방 만들기</button></div>
+        <div class="card"><h3>방 참가</h3><input id="on-code" maxlength="4" placeholder="ABCD" class="code-in" autocomplete="off"><button id="on-join" class="btn alt">참가하기</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 온라인 대기실 -->
+<section id="scr-onlineLobby" class="screen">
+  <div class="panel lobby">
+    <div class="lobby-h">
+      <button class="btn sm btn-back">◀ 나가기</button>
+      <h2>대기실 <span class="code" id="room-code" title="클릭해서 복사">----</span></h2>
+      <span class="cnt"><i id="net"></i><b id="on-count">1</b>/4</span>
+    </div>
+    <div class="slots" id="on-slots"></div>
+    <div class="lobby-opts">
+      <div class="opt"><label>맵</label><div class="maps" id="on-maps"></div></div>
+      <label class="tog"><input type="checkbox" id="on-team"><span></span>팀전</label>
+      <button id="on-start" class="btn big go">게임 시작 ▶</button>
+      <div id="on-wait" class="waitmsg">방장이 게임을 시작하길 기다리는 중<span class="dots"></span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 결과 -->
+<section id="scr-result" class="screen">
+  <div class="panel result">
+    <div class="res-title" id="res-title"></div>
+    <div id="res-list"></div>
+    <div class="res-btns"><button id="res-again" class="btn go">다시 하기</button><button id="res-home" class="btn">메인으로</button></div>
+  </div>
+</section>
+
+<div id="plist" class="hidden"></div>
+<div id="banner"></div>
+<div id="toasts"></div>
+
+<!-- 모바일 터치 조작 -->
+<div id="touch" class="hidden">
+  <div class="tpad left"><button data-touch="left">◀</button><button data-touch="right">▶</button></div>
+  <div class="tpad right"><div class="updown"><button data-touch="up">▲</button><button data-touch="down">▼</button></div><button data-touch="fire" class="fire">발사</button></div>
+</div>
+
+<!-- 하단 HUD -->
+<div id="hud" class="hidden">
+  <div class="hud-l">
+    <canvas id="hud-portrait" width="140" height="84"></canvas>
+    <div class="hud-info">
+      <div class="hud-nm"><b id="hud-name"></b><small id="hud-tank"></small></div>
+      <div class="bar hp"><i id="hud-hp"></i><span id="hud-hp-t"></span></div>
+      <div class="bar ss"><i id="hud-ss"></i><span>SS</span></div>
+    </div>
+  </div>
+  <div class="hud-m">
+    <div class="dial"><canvas id="hud-angle" width="96" height="96"></canvas><b id="hud-angle-t">45°</b></div>
+    <div class="gauges">
+      <div class="glabel"><span>POWER</span><b id="hud-power-t">0</b></div>
+      <div class="gauge power"><i id="hud-power"></i><em id="hud-lastpower" title="지난 파워"></em><div class="ticks"></div></div>
+      <div class="glabel mv"><span>MOVE</span></div>
+      <div class="gauge move"><i id="hud-move"></i></div>
+    </div>
+    <div id="hud-weapons" class="weapons">
+      <button class="wbtn"><kbd>1</kbd><span class="wn"></span><span class="wd"></span></button>
+      <button class="wbtn"><kbd>2</kbd><span class="wn"></span><span class="wd"></span></button>
+      <button class="wbtn ssw"><kbd>SS</kbd><span class="wn"></span><span class="wd"></span></button>
+    </div>
+  </div>
+  <div class="hud-r">
+    <div class="wind"><div class="wl">WIND</div><div class="wbar"><div class="side l"><i id="wind-l"></i></div><div class="side r"><i id="wind-r"></i></div></div><div id="wind-t"></div></div>
+    <div class="timer" id="hud-timer">25</div>
+    <div class="hbtns"><button id="btn-skip" title="턴 넘기기 (Tab)">⏭</button><button id="btn-mute" title="소리">🔊</button><button id="btn-quit" title="나가기">⏏</button></div>
+  </div>
+</div>
+
+<!-- 조작법 -->
+<div id="help" class="modal">
+  <div class="panel narrow">
+    <h2>조작법</h2>
+    <table class="keys">
+      <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>이동 (MOVE 게이지 소모)</td></tr>
+      <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>포신 각도 조절 (길게 누르면 빨라짐)</td></tr>
+      <tr><td><kbd>Space</kbd> 누르고 떼기</td><td>파워 충전 → 떼는 순간 발사</td></tr>
+      <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td>무기 선택 (3 = SS 필살기, 게이지 100%)</td></tr>
+      <tr><td><kbd>Tab</kbd></td><td>턴 넘기기</td></tr>
+    </table>
+    <ul class="tips">
+      <li><b>바람</b>이 매 턴 바뀝니다. 미사일은 절반, 레이저 플라즈마는 영향을 받지 않아요.</li>
+      <li><b>딜레이 턴제</b>: 강한 무기일수록, 많이 움직일수록 다음 차례가 늦게 옵니다.</li>
+      <li><b>SS 게이지</b>는 피해를 주거나 받을 때 차오릅니다.</li>
+      <li>물(용암)에 빠지면 즉시 탈락! 발밑 지형을 조심하세요.</li>
+      <li>파워 게이지의 <b>노란 표시</b>는 지난 턴에 쏜 파워입니다.</li>
+    </ul>
+    <button id="help-close" class="btn go">확인</button>
+  </div>
+</div>
+
+<?!= include('Core'); ?>
+<?!= include('Sim'); ?>
+<?!= include('Render'); ?>
+<?!= include('Game'); ?>
+</body>
+</html>
