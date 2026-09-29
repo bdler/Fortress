@@ -85,12 +85,11 @@
 #hud-portrait { width: 100%; height: 100%; display: block; }
 .pbadge { position: absolute; right: 3px; bottom: 3px; font-size: 10px; padding: 1px 5px; border-radius: 6px; background: rgba(0,0,0,.65); color: #fff; line-height: 13px; }
 .pbadge:empty { display: none; }
+.ptank { position: absolute; left: 3px; top: 3px; font: 10px/14px 'Black Han Sans', sans-serif; letter-spacing: .5px; padding: 0 5px; border-radius: 5px; background: rgba(0,0,0,.6); color: #fff; }
 .hud-info { flex: 1; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .hud-nm { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; overflow: hidden; }
 .hud-nm b { font-size: 21px; font-weight: normal; text-shadow: 0 2px 0 #000; overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto; max-width: 100%; }
-.hud-nm small { flex: 1 1 0; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.hud-nm small { color: var(--muted); }
-.hud-nm em { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; font-style: normal; font-size: 10px; padding: 1px 5px; border-radius: 5px; background: rgba(255,255,255,.14); color: #dfe6ff; }
+.hud-nm em { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-style: normal; font-size: 10px; padding: 1px 5px; border-radius: 5px; background: rgba(255,255,255,.14); color: #dfe6ff; }
 .hud-nm em:empty { display: none; }
 .bar { position: relative; height: 18px; background: #05070f; border-radius: 9px; overflow: hidden; border: 2px solid #000; box-shadow: inset 0 2px 3px rgba(0,0,0,.7); }
 .bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0 6px 6px 0; }
@@ -221,7 +220,6 @@ body.touch #touch:not(.hidden) { display: flex; }
   .wbtn { width: 86px; }
   .wbtn .wn { font-size: 12px; }
   .items { grid-template-columns: repeat(3, 40px); }
-  .hud-nm small { display: none; }
   .hud-nm b { font-size: 18px; }
   .hud-l .pframe { aspect-ratio: 1.1; }
 }
@@ -255,7 +253,7 @@ body.touch #touch:not(.hidden) { display: flex; }
   .hp-panel { border-radius: 9px; }
   .screw { display: none; }
   .hud-l { padding: 4px 6px; }
-  .hud-l .pframe, .dial, .wbtn .wd, .wbtn .wic, .wl, .glabel.mv, .hud-nm small, .gscale, .hud-nm em { display: none; }
+  .hud-l .pframe, .dial, .wbtn .wd, .wbtn .wic, .wl, .glabel.mv, .gscale, .hud-nm em { display: none; }
   .hud-info { gap: 3px; }
   .hud-nm b { font-size: 14px; }
   .bar { height: 14px; border-width: 1px; }

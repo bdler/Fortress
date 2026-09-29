@@ -209,7 +209,7 @@ function render(dtIn) {
   const ext = Cam.ext || 0;
   drawFrameBg(ctx, ext);
   ctx.setTransform(s, 0, 0, s, (G.ox + VW.sx) * dpr, (G.oy + VW.sy) * dpr);
-  ctx.save(); ctx.beginPath(); ctx.rect(-20, -20 - ext, W + 40, H + 40 + ext); ctx.clip();
+  ctx.save(); ctx.beginPath(); ctx.rect(0, -20 - ext, W, H + 40 + ext); ctx.clip();
   if (ext > 0) {
     ctx.drawImage(G.bg, 0, 0, W, 3, -20, -ext - 21, W + 40, ext + 22);
     ctx.fillStyle = vgrad(ctx, -ext - 20, 0, ['rgba(0,0,40,0.28)', 'rgba(0,0,40,0)']); ctx.fillRect(-20, -ext - 21, W + 40, ext + 21);
@@ -254,7 +254,7 @@ function drawFrameBg(ctx, ext) {
     x.strokeStyle = 'rgba(255,255,255,0.035)'; x.lineWidth = 6; x.beginPath(); x.moveTo(-6, 30); x.lineTo(30, -6); x.stroke();
     VW.pat = ctx.createPattern(c, 'repeat');
   }
-  const dpr = G.dpr, a = w2s(-18, -18 - ext), b = w2s(W + 18, H + 18), cw = G.canvas.width / dpr, ch = G.canvas.height / dpr;
+  const dpr = G.dpr, a = w2s(0, -18 - ext), b = w2s(W, H + 18), cw = G.canvas.width / dpr, ch = G.canvas.height / dpr;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = VW.pat;
   const x0 = Math.max(0, Math.floor(a.x)), y0 = Math.max(0, Math.floor(a.y)), x1 = Math.min(cw, Math.ceil(b.x)), y1 = Math.min(ch, Math.ceil(b.y));
   if (y0 > 0) ctx.fillRect(0, 0, cw, y0);
