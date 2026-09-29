@@ -1,9 +1,7 @@
 <script>
 /* =========================================================
- *  Game: 게임 상태, 턴 진행, 입력, 로컬/온라인 백엔드, CPU AI
- * ========================================================= */
-/* =========================================================
- *  Game: 화면 전환, 턴 진행, 입력, AI, HUD, 로컬/온라인 백엔드
+ *  Game: 게임 상태, 턴 진행, 입력, 로컬/온라인 백엔드, CPU AI,
+ *        아이템 · 감정표현 · 기분(mood) · 전적(stats)
  * ========================================================= */
 
 const G = {
@@ -14,7 +12,7 @@ const G = {
   clouds: [], ambient: [], fx: null,
   queue: [], log: [], busy: false, anim: null, turn: null, ctl: null, backend: null,
   live: null, playedTurns: new Set(), wind: 0, t: 0, lastTime: 0, endInfo: null, endT: 0,
-  needResync: false, lastConfig: null
+  needResync: false, lastConfig: null, turnOrder: []
 };
 
 /* ---------------- 입력 ---------------- */
@@ -32,6 +30,10 @@ function setupInput() {
       if (e.key === '2' || e.key === 'w' || e.key === 'W') selectWeapon(1);
       if (e.key === '3' || e.key === 'e' || e.key === 'E') selectWeapon(2);
       if (e.key === 'Tab' || e.key === 'p' || e.key === 'P') { e.preventDefault(); skipMyTurn(); }
+      const ik = ['4', '5', '6'].indexOf(e.key);
+      if (ik >= 0 && !e.repeat) selectItem(ITEM_IDS[ik]);
+      const ek = ['7', '8', '9', '0'].indexOf(e.key);
+      if (ek >= 0 && !e.repeat) sendEmote(ek);
     }
   });
   window.addEventListener('keyup', e => {
@@ -65,7 +67,7 @@ class LocalBackend {
     const alive = this.players.filter(p => p.alive);
     alive.sort((a, b) => (a.delay - b.delay) || (a.lastTurn - b.lastTurn) || (a.slot - b.slot));
     this.turnNo++;
-    G.queue.push({ type: 'turn', pid: alive[0].id, no: this.turnNo, wind: Math.round((Math.random() * 2 - 1) * 10) });
+    G.queue.push({ type: 'turn', pid: alive[0].id, no: this.turnNo, wind: Math.round((Math.random() * 2 - 1) * 10), order: alive.map(p => p.id) });
   }
   checkEnd() {
     const sides = new Set(this.players.filter(p => p.alive).map(p => this.side(p)));
@@ -89,6 +91,7 @@ class LocalBackend {
     if (!this.checkEnd()) this.nextTurn();
   }
   sendLive() { }
+  emote(p, i) { applyEmote(p.id, i); return true; }
   leave() { }
 }
 
@@ -119,6 +122,8 @@ class OnlineBackend {
       for (const ev of res.events) {
         if (ev.i !== this.since) break;
         this.since = ev.i + 1;
+        // 감정표현은 포격 애니메이션 뒤에 줄 세우지 않고 바로 표시 (로그에도 넣지 않음)
+        if (ev.type === 'emote') { if (ev.from !== this.pid && G.screen === 'play') applyEmote(ev.pid, ev.i); continue; }
         G.queue.push(ev);
       }
       G.live = res.live;
@@ -149,6 +154,12 @@ class OnlineBackend {
     this.lastLive = now; this.liveKey = key;
     Net.call('sendLive', this.code, this.pid, this.token, data).catch(() => { });
   }
+  emote(p, i) {
+    // 즉시 내 화면에 표시하고 서버로 전달 (서버 에코는 from 으로 걸러냄)
+    applyEmote(p.id, i);
+    Net.call('emote', this.code, this.pid, this.token, i, p.id).catch(() => { });
+    return true;
+  }
   leave() { this.stopped = true; Net.call('leaveRoom', this.code, this.pid, this.token).catch(() => { }); }
 }
 
@@ -170,12 +181,57 @@ function initMatch(ev) {
       id: sp.id, name: sp.name, tank: sp.tank, team: sp.team || 0, slot: sp.slot, cpu: !!sp.cpu, pc: PCOLORS[sp.slot % 4],
       x, y, vy: 0, facing: x < W / 2 ? 1 : -1, angle: 45, hp: T.hp, maxHp: T.hp, hpShow: T.hp, alive: true, sunk: false,
       ss: 0, freeze: 0, falling: false, fallFrom: y, dealt: 0, totalDealt: 0, tread: 0, recoil: 0, hurtT: 0, frozenT: 0,
-      seedOff: i * 1.37, lastPower: null, left: false
+      seedOff: i * 1.37, lastPower: null, left: false,
+      mood: null, moodT: 0, movingT: 0, emote: null, emoteAt: -99,
+      items: Object.assign({}, ITEM_START), stats: newStats()
     };
   });
   G.anim = null; G.turn = null; G.ctl = null; G.busy = false; G.playedTurns = new Set(); G.endInfo = null; G.live = null;
+  G.turnOrder = [];
   G.startEv = ev;
+  if (!G.attract && Sound.setAmbient) Sound.setAmbient(G.themeId);
 }
+
+function newStats() { return { shots: 0, hits: 0, kills: 0, maxHit: 0, dealt: 0, taken: 0, heals: 0, items: 0 }; }
+
+/** 포격 한 번의 결과 요약 (params + result 만 사용 → 모든 클라이언트 동일) */
+function shotSummary(params, result, aliveBefore) {
+  const sh = findPlayer(params.pid);
+  const S = { shooter: sh, kills: [], victims: [], dealt: 0, enemyHit: false, selfHit: 0, item: validItem(params.item) };
+  if (S.item === 'dual' && sh && TANKS[sh.tank].weapons[params.weapon].ss) S.item = null;
+  result.players.forEach(rp => {
+    const q = findPlayer(rp.id);
+    if (!q) return;
+    const taken = rp.taken || 0;
+    if (q === sh) { S.dealt = rp.dealt || 0; S.selfHit = taken; }
+    else if (taken > 0) { S.victims.push(q); if (sh && isEnemy(sh, q)) S.enemyHit = true; }
+    if (q !== sh && aliveBefore[q.id] && !rp.alive && sh && isEnemy(sh, q)) S.kills.push(q);
+  });
+  return S;
+}
+
+/** 전적 + 아이템 개수 반영 (playShot 이후 finishShot, resyncFromLog 에서 호출) */
+function applyShotStats(params, result, S) {
+  const sh = S.shooter;
+  if (sh) {
+    const st = sh.stats;
+    st.shots++; if (S.enemyHit) st.hits++;
+    st.kills += S.kills.length; st.dealt += S.dealt; st.maxHit = Math.max(st.maxHit, S.dealt);
+    if (S.item) st.items++;
+    if (S.item === 'heal') st.heals++;
+  }
+  result.players.forEach(rp => { const q = findPlayer(rp.id); if (q) q.stats.taken += rp.taken || 0; });
+}
+
+/** 아이템 소모 (쏜 순간 모두에게 동일하게) */
+function consumeItem(params) {
+  const sh = findPlayer(params.pid), id = validItem(params.item);
+  if (!sh || !id) return;
+  if (id === 'dual' && TANKS[sh.tank].weapons[params.weapon].ss) return;
+  if (sh.items[id] > 0) sh.items[id]--;
+}
+
+function aliveMap() { const m = {}; G.players.forEach(p => m[p.id] = p.alive); return m; }
 
 function findPlayer(id) { return G.players.find(p => p.id === id); }
 
@@ -215,10 +271,13 @@ function resyncFromLog() {
     if (ev.type === 'shot') {
       ev.result.ops.forEach(o => ops.push(o));
       const sp = findPlayer(ev.pid); if (sp) { sp.facing = ev.params.facing; sp.angle = ev.params.angle; sp.lastPower = ev.params.power; }
+      const before = aliveMap();
+      consumeItem(ev.params);
       applyResult(ev.result);
+      applyShotStats(ev.params, ev.result, shotSummary(ev.params, ev.result, before));
       ev.result.players.forEach(rp => { const p = findPlayer(rp.id); if (p) p.totalDealt += rp.dealt || 0; });
     } else if (ev.type === 'leave') { const p = findPlayer(ev.pid); if (p) { p.left = true; p.alive = false; } }
-    ev.type === 'turn' && G.playedTurns.add(ev.no - 1);
+    if (ev.type === 'turn') { G.playedTurns.add(ev.no - 1); G.turnOrder = (ev.order || [ev.pid]).slice(); }
   }
   rebuildTerrain(ops);
   G.players.forEach(p => p.hpShow = p.hp);
@@ -232,6 +291,7 @@ function pumpEvents() {
   while (!G.busy && G.queue.length) {
     const ev = G.queue.shift();
     if (G.needResync && ev.type !== 'start') { G.needResync = false; G.log.push(ev); resyncFromLog(); G.log.pop(); }
+    if (ev.type === 'emote') { applyEmote(ev.pid, ev.i); continue; }
     if (ev.type !== 'start') G.log.push(ev);
     handleEvent(ev);
   }
@@ -275,7 +335,7 @@ function handleEvent(ev) {
     }
     case 'leave': {
       const p = findPlayer(ev.pid);
-      if (p) { p.left = true; p.alive = false; toast(`${p.name} 님이 나갔습니다.`); }
+      if (p) { p.left = true; p.alive = false; toast(`${p.name} 님이 나갔습니다.`); G.turnOrder = G.turnOrder.filter(id => id !== p.id); }
       break;
     }
     case 'end': endMatch(ev); break;
@@ -286,12 +346,14 @@ function beginTurn(ev) {
   G.wind = ev.wind;
   const p = findPlayer(ev.pid);
   G.turn = { pid: ev.pid, no: ev.no, wind: ev.wind, timeLeft: TURN_TIME };
+  G.turnOrder = (Array.isArray(ev.order) && ev.order.length ? ev.order : [ev.pid]).filter(id => { const q = findPlayer(id); return q && q.alive; });
   G.ctl = null;
+  if (!G.attract && Sound.setWind) Sound.setWind(ev.wind);
   if (!p) return;
   if (G.backend.controls(p)) {
     const w = TANKS[p.tank];
     G.ctl = { pid: p.id, weapon: 0, power: 0, charging: false, fuel: w.fuel, fuelUsed: 0, delayT: G.attract ? 0.3 : 0.9, done: false,
-              ai: p.cpu ? { phase: 'think', t: rand(0.5, 1.1) } : null, lastTick: 99 };
+              ai: p.cpu ? { phase: 'think', t: rand(0.5, 1.1) } : null, lastTick: 99, item: null, warned: false };
   }
   const mine = G.ctl && !p.cpu;
   if (!G.attract) {
@@ -308,13 +370,17 @@ function windText(w) { return w === 0 ? '없음' : (w < 0 ? '◀ ' : '') + Math.
 function playShot(params, result) {
   const p = findPlayer(params.pid);
   p.x = params.x; p.y = params.y; p.facing = params.facing; p.angle = params.angle; p.lastPower = params.power;
-  G.players.forEach(q => { q.freeze = 0; q.dealt = 0; q.vy = 0; q.falling = false; q.fallFrom = q.y; });
+  G.players.forEach(q => { q.freeze = 0; q.dealt = 0; q.taken = 0; q.healed = 0; q.vy = 0; q.falling = false; q.fallFrom = q.y; });
   const world = makeWorld(G.terrain, G.players, params.wind, params.seed, G.fx);
-  G.anim = { world, params, result, opsStart: G.terrain.ops.length, acc: 0, settleT: 0, t: 0 };
+  G.anim = { world, params, result, opsStart: G.terrain.ops.length, acc: 0, settleT: 0, t: 0, alive: aliveMap() };
   G.busy = true;
   const w = TANKS[p.tank].weapons[params.weapon];
+  let item = validItem(params.item);
+  if (item === 'dual' && w.ss) item = null;
+  consumeItem(params);
   if (w.ss && !G.attract) { Sound.play('ss'); banner('SS ' + w.name + '!', p.name, '#ffd23f'); }
-  fireShot(world, params.pid, params.weapon, params.angle, params.power);
+  else if (item && !G.attract) { const it = ITEMS[item]; Sound.play(item === 'heal' ? 'heal' : 'item'); toast(`${p.name}: ${it.icon} ${it.name}!`); }
+  fireShot(world, params.pid, params.weapon, params.angle, params.power, params.item);
 }
 
 function updateAnim(dt) {
@@ -336,8 +402,61 @@ function finishShot() {
   }
   applyResult(A.result);
   A.result.players.forEach(rp => { const p = findPlayer(rp.id); if (p) p.totalDealt += rp.dealt || 0; });
+  const S = shotSummary(A.params, A.result, A.alive);
+  applyShotStats(A.params, A.result, S);
+  reactToShot(S);
   G.busy = false;
   updateHud(true);
+}
+
+/* ---------------- 기분(mood) & 감정표현 ---------------- */
+function setMood(p, m, t) { if (p) { p.mood = m; p.moodT = t; } }
+
+/** 포격 결과에 대한 반응: 쏜 사람 smug/happy/sad, 맞은 사람 angry, CPU 는 가끔 말풍선 */
+function reactToShot(S) {
+  const sh = S.shooter;
+  S.victims.forEach(v => { if (v.alive) setMood(v, 'angry', 2.5); });
+  if (sh && sh.alive) setMood(sh, S.kills.length ? 'smug' : S.enemyHit ? 'happy' : 'sad', 3);
+  if (G.screen !== 'play' && !G.attract) return;
+  // CPU 말풍선 (내가 조종하는 CPU만 → 온라인에선 방장이 대표로 전송)
+  const cpuSay = (p, i, prob) => { if (p && p.cpu && p.alive && G.backend.controls(p) && Math.random() < prob) setTimeout(() => emoteAs(p, i), 400 + Math.random() * 700); };
+  if (sh && sh.cpu) {
+    if (S.kills.length || S.dealt >= 250) cpuSay(sh, Math.random() < 0.5 ? 1 : 2, 0.55);
+    else if (!S.enemyHit) cpuSay(sh, 3, 0.35);
+  }
+  const hurt = S.victims.filter(v => v.cpu && v !== sh);
+  if (hurt.length) { const v = hurt[Math.floor(Math.random() * hurt.length)]; cpuSay(v, sh && sh.cpu ? 4 : (Math.random() < 0.5 ? 4 : 2), 0.3); }
+}
+
+/** 말풍선 표시 (모든 클라이언트, 화면 효과만) */
+function applyEmote(pid, i) {
+  const p = findPlayer(pid);
+  i = Math.floor(+i);
+  if (!p || !(i >= 0 && i < EMOTES.length) || p.left) return;
+  p.emote = { i, text: EMOTES[i].text, icon: EMOTES[i].icon, t: EMOTE_TIME };
+  p.emoteAt = G.t;
+  if (!G.attract) Sound.play('emote');
+}
+
+/** p 로서 감정표현 보내기 (쿨다운 포함) */
+function emoteAs(p, i) {
+  if (!p || !G.backend || !G.players.length || G.players.indexOf(p) < 0) return false;
+  if (G.endInfo && !G.backend.local) return false;
+  if (!(i >= 0 && i < EMOTES.length)) return false;
+  if (G.t - (p.emoteAt || -99) < EMOTE_GAP) return false;
+  p.emoteAt = G.t;
+  return G.backend.emote ? G.backend.emote(p, i) : false;
+}
+
+/** 사람 플레이어의 감정표현 (7/8/9/0 키, HUD 버튼) */
+function sendEmote(i) {
+  if (G.screen !== 'play' || !G.backend || !G.players.length) return;
+  let p = null;
+  if (G.backend.local) {
+    const cp = curPlayer();
+    p = cp && !cp.cpu && cp.alive ? cp : G.players.find(q => !q.cpu && q.alive) || G.players.find(q => !q.cpu);
+  } else p = findPlayer(G.backend.pid);
+  if (p) emoteAs(p, i);
 }
 
 /* ---------------- 조작 (사람 / CPU) ---------------- */
@@ -347,7 +466,20 @@ function selectWeapon(i) {
   const c = G.ctl, p = curPlayer();
   if (!c || !p || p.cpu || c.charging || c.done) return;
   if (i === 2 && p.ss < 100) { Sound.play('bounce'); toast('SS 게이지가 가득 차야 쓸 수 있습니다.'); return; }
-  c.weapon = i; Sound.play('click'); updateHud(true);
+  c.weapon = i;
+  if (i === 2 && c.item === 'dual') { c.item = null; toast('필살기에는 듀얼을 쓸 수 없습니다.'); }
+  Sound.play('click'); updateHud(true);
+}
+
+/** 아이템 선택/해제 (이번 턴에 하나만) */
+function selectItem(id) {
+  const c = G.ctl, p = curPlayer();
+  if (!c || !p || p.cpu || c.charging || c.done || !ITEMS[id]) return;
+  if (c.item === id) { c.item = null; Sound.play('click'); updateHud(true); return; }
+  if (!p.items || !(p.items[id] > 0)) { Sound.play('bounce'); toast(`${ITEMS[id].name} 아이템을 다 썼습니다.`); return; }
+  if (id === 'dual' && TANKS[p.tank].weapons[c.weapon].ss) { Sound.play('bounce'); toast('필살기에는 듀얼을 쓸 수 없습니다.'); return; }
+  if (id === 'heal' && p.hp >= p.maxHp) { Sound.play('bounce'); toast('체력이 가득 차 있습니다.'); return; }
+  c.item = id; Sound.play('select'); updateHud(true);
 }
 
 function skipMyTurn() {
@@ -366,16 +498,17 @@ function updateControl(dt) {
   if (c.delayT > 0) { c.delayT -= dt; return; }
   if (c.ai) aiUpdate(c, p, dt); else humanUpdate(c, p, dt);
   if (!c.done && G.turn.timeLeft <= 0) { if (c.charging) doFire(); else doSkip(); }
+  if (!c.done && !c.ai && !c.warned && G.turn.timeLeft <= 5) { c.warned = true; Sound.play('turnwarn'); }
   if (!c.done && !c.ai && G.turn.timeLeft < 5.5 && Math.ceil(G.turn.timeLeft) !== c.lastTick) { c.lastTick = Math.ceil(G.turn.timeLeft); Sound.play('tick'); }
   if (!c.done && !G.backend.local) {
-    G.backend.sendLive({ actor: p.id, x: p.x, y: p.y, facing: p.facing, angle: Math.round(p.angle), weapon: c.weapon, power: c.charging ? Math.round(c.power) : 0 });
+    G.backend.sendLive({ actor: p.id, x: p.x, y: p.y, facing: p.facing, angle: Math.round(p.angle), weapon: c.weapon, power: c.charging ? Math.round(c.power) : 0, item: c.item || null });
   }
 }
 
 function walk(c, p, dir, dt) {
   if (c.fuel <= 0) { p.facing = dir; return false; }
   const d = moveTank(G.terrain.mask, p, dir, Math.min(3, 72 * dt));
-  if (d > 0) { c.fuel = Math.max(0, c.fuel - d * 0.5); c.fuelUsed += d * 0.5; p.tread += d; return true; }
+  if (d > 0) { c.fuel = Math.max(0, c.fuel - d * 0.5); c.fuelUsed += d * 0.5; p.tread += d; p.movingT = 0.15; return true; }
   p.facing = dir;
   return false;
 }
@@ -403,9 +536,13 @@ function doFire() {
   c.done = true; c.charging = false; Sound.moving(false);
   if (Input.fire) c.fireHeld = true;
   p.angle = Math.round(p.angle);
+  let item = validItem(c.item);
+  if (item && !(p.items && p.items[item] > 0)) item = null;
+  if (item === 'dual' && w.ss) item = null;
   const params = {
     pid: p.id, weapon: c.weapon, angle: p.angle, power: Math.round(c.power * 10) / 10, x: p.x, y: p.y, facing: p.facing,
-    wind: G.turn.wind, seed: Math.floor(Math.random() * 2147483647), delayAdd: w.delay + Math.round(c.fuelUsed * 2)
+    wind: G.turn.wind, seed: Math.floor(Math.random() * 2147483647),
+    delayAdd: w.delay + Math.round(c.fuelUsed * 2) + (item ? ITEMS[item].delay : 0), item
   };
   const result = simulateShot(G.terrain, G.players, params);
   const no = G.turn.no;
@@ -476,6 +613,17 @@ function aiPlanAim(p, wIdx) {
   return best;
 }
 
+/** CPU 아이템 사용: 체력 40% 미만이면 회복, 조준이 좋으면 가끔 파워업/듀얼 */
+function aiPickItem(p, wIdx, plan) {
+  const it = p.items || {}, w = TANKS[p.tank].weapons[wIdx];
+  if (it.heal > 0 && p.hp < p.maxHp * 0.4) return 'heal';
+  if (plan.score < 45) {
+    if (it.dual > 0 && !w.ss && Math.random() < 0.35) return 'dual';
+    if (it.power > 0 && Math.random() < 0.45) return 'power';
+  }
+  return null;
+}
+
 function aiUpdate(c, p, dt) {
   const ai = c.ai;
   if (ai.phase === 'think') {
@@ -499,6 +647,7 @@ function aiUpdate(c, p, dt) {
     Sound.moving(false);
     ai.plan = aiPlanAim(p, c.weapon);
     p.facing = ai.plan.facing;
+    c.item = c.item || aiPickItem(p, c.weapon, ai.plan);
     ai.phase = 'aim';
   } else if (ai.phase === 'aim') {
     const d = ai.plan.angle - p.angle;
@@ -524,6 +673,7 @@ function updateRemote(dt) {
     const before = p.x;
     moveTank(G.terrain.mask, p, Math.sign(dx), Math.min(Math.abs(dx), 72 * dt));
     p.tread += Math.abs(p.x - before);
+    if (p.x !== before) p.movingT = 0.15;
     if (p.x === before && Math.abs(dx) > 3) { p.x = L.x; p.y = groundNear(G.terrain.mask, p.x, p.y); }
   } else p.facing = L.facing;
   p.angle += (L.angle - p.angle) * Math.min(1, dt * 10);
@@ -531,7 +681,12 @@ function updateRemote(dt) {
 
 /* ---------------- 게임 종료 ---------------- */
 function endMatch(ev) {
-  G.endInfo = ev; G.turn = null; G.ctl = null; Sound.moving(false);
+  G.endInfo = ev; G.turn = null; G.ctl = null; G.turnOrder = []; Sound.moving(false);
+  // 승자는 우쭐, 나머지는 시무룩 / 로컬 CPU 는 GG
+  G.players.forEach(p => {
+    setMood(p, ev.winners.indexOf(p.id) >= 0 ? 'smug' : 'sad', 6);
+    if (G.backend.local && p.cpu && !p.left && Math.random() < 0.6) setTimeout(() => applyEmote(p.id, 5), 300 + Math.random() * 900);
+  });
   if (G.attract) { const tok = G.startEv; setTimeout(() => { if (G.attract && G.startEv === tok) startAttract(); }, 2500); return; }
   const win = ev.winners.map(findPlayer).filter(Boolean);
   const iWon = G.backend.local ? !win.every(p => p.cpu) : win.some(p => p.id === G.backend.pid);
@@ -551,6 +706,9 @@ function loop(ts) {
     updateRemote(dt);
     for (const p of G.players) {
       p.recoil = Math.max(0, p.recoil - dt * 4); p.hurtT = Math.max(0, p.hurtT - dt); p.frozenT = Math.max(0, p.frozenT - dt * 0.5);
+      if (p.moodT > 0) { p.moodT -= dt; if (p.moodT <= 0) { p.moodT = 0; p.mood = null; } }
+      if (p.movingT > 0) p.movingT = Math.max(0, p.movingT - dt);
+      if (p.emote) { p.emote.t -= dt; if (p.emote.t <= 0) p.emote = null; }
       p.hpShow += (p.hp - p.hpShow) * Math.min(1, dt * 3);
     }
     G.fx.update(dt);

@@ -155,7 +155,7 @@ function makeSimPlayer(src) {
   return {
     id: src.id, tank: src.tank, x: src.x, y: src.y, vy: 0, facing: src.facing, angle: src.angle,
     hp: src.hp, maxHp: src.maxHp, alive: src.alive, sunk: !!src.sunk, ss: src.ss || 0, team: src.team || 0,
-    freeze: 0, falling: false, fallFrom: src.y, dealt: 0
+    freeze: 0, falling: false, fallFrom: src.y, dealt: 0, taken: 0, healed: 0
   };
 }
 
@@ -165,9 +165,38 @@ function makeWorld(terrain, players, wind, seed, fx) {
 
 function findP(world, id) { return world.players.find(p => p.id === id); }
 
-/** 발사 */
-function fireShot(world, shooterId, wIdx, angle, power) {
-  const p = findP(world, shooterId), w = TANKS[p.tank].weapons[wIdx];
+/** 아이템 id 검증 (알 수 없는 값은 무시) */
+function validItem(id) { return typeof id === 'string' && ITEM_IDS.indexOf(id) >= 0 ? id : null; }
+
+/** 파워업이 적용된 무기 사본 */
+function poweredWeapon(w) {
+  const o = Object.assign({}, w, { dmg: Math.round(w.dmg * POWER_DMG), r: Math.round(w.r * POWER_R), powered: true });
+  if (w.sdmg) o.sdmg = Math.round(w.sdmg * POWER_DMG);
+  if (w.sr) o.sr = Math.round(w.sr * POWER_R);
+  return o;
+}
+
+/** 발사 (item: null|'dual'|'power'|'heal') */
+function fireShot(world, shooterId, wIdx, angle, power, item) {
+  const p = findP(world, shooterId);
+  let w = TANKS[p.tank].weapons[wIdx];
+  item = validItem(item);
+  if (item === 'dual' && w.ss) item = null; // 필살기에는 듀얼 불가
+  world.item = item;
+  if (item === 'heal') {
+    const amt = Math.max(0, Math.min(p.maxHp - p.hp, Math.round(p.maxHp * HEAL_FRAC)));
+    p.hp += amt; p.healed = (p.healed || 0) + amt;
+    if (world.fx) { world.fx.item && world.fx.item(p, item); world.fx.heal && world.fx.heal(p, amt); }
+  } else if (item) {
+    if (item === 'power') w = poweredWeapon(w);
+    if (world.fx && world.fx.item) world.fx.item(p, item);
+  }
+  fireVolley(world, p, w, angle, power);
+  if (w.ss) p.ss = 0;
+  if (item === 'dual') world.pending.push({ t: world.t + DUAL_GAP, kind: 'volley', pid: p.id, w, angle, power });
+}
+
+function fireVolley(world, p, w, angle, power) {
   const n = w.count || 1;
   const speed = power / 100 * VMAX * (w.speedMul || 1);
   const mz = muzzle(world.terrain.mask, p, angle);
@@ -177,7 +206,6 @@ function fireShot(world, shooterId, wIdx, angle, power) {
     if (w.seq && i > 0) world.pending.push({ t: world.t + i * w.seq, kind: 'proj', proj: pr, muzzleFx: true });
     else addProj(world, pr);
   }
-  if (w.ss) p.ss = 0;
   if (world.fx) world.fx.fire(p, w, mz);
 }
 
@@ -205,7 +233,11 @@ function stepWorld(world, dt) {
 
 function runPending(world, e) {
   world.lastEventT = world.t;
-  if (e.kind === 'proj') {
+  if (e.kind === 'volley') {
+    // 듀얼 2차 발사: 그 시점의 위치(낙하 등 반영)에서 같은 각도/파워로
+    const p = findP(world, e.pid);
+    if (p && p.alive && !p.sunk && !p.falling) fireVolley(world, p, e.w, e.angle, e.power);
+  } else if (e.kind === 'proj') {
     addProj(world, Object.assign({}, e.proj));
     if (e.muzzleFx && world.fx) world.fx.fire(findP(world, e.proj.owner), e.proj.w, e.proj);
   } else if (e.kind === 'orbital') {
@@ -213,7 +245,7 @@ function runPending(world, e) {
     const top = Math.min(surfaceY(m, x), SEA);
     for (let y = top - 10; y < Math.min(top + 190, SEA + 20); y += 16) world.terrain.crater(x, y, w.sr);
     for (const p of world.players) {
-      if (p.alive && Math.abs(p.x - x) < w.sr + 14) applyDamage(world, p, w.sdmg, e.owner, w);
+      if (p.alive && Math.abs(p.x - x) < w.sr + 14) applyDamage(world, p, w.sdmg, e.owner, w, false);
     }
     if (world.fx) world.fx.beam(x, top);
   }
@@ -342,19 +374,19 @@ function damageArea(world, x, y, r, dmg, owner, direct, w) {
     let amt = 0;
     if (p === direct) amt = dmg * 1.2;
     else if (d < reach) amt = dmg * (0.3 + 0.7 * (1 - d / reach));
-    if (amt > 0) applyDamage(world, p, Math.round(amt), owner, w);
+    if (amt > 0) applyDamage(world, p, Math.round(amt), owner, w, p === direct);
   }
 }
 
-function applyDamage(world, p, amt, owner, w) {
+function applyDamage(world, p, amt, owner, w, direct) {
   if (!p.alive || amt <= 0) return;
   amt = Math.min(amt, p.hp);
-  p.hp -= amt;
+  p.hp -= amt; p.taken = (p.taken || 0) + amt;
   const o = findP(world, owner);
   if (o && o !== p) { o.ss = Math.min(100, o.ss + amt * 0.12); o.dealt += amt; }
   p.ss = Math.min(100, p.ss + amt * 0.06);
   if (w && w.freeze) p.freeze += w.freeze;
-  if (world.fx) world.fx.damage(p, amt, w);
+  if (world.fx) world.fx.damage(p, amt, w, { direct: !!direct, owner: owner == null ? null : owner });
   if (p.hp <= 0) killPlayer(world, p, false);
 }
 
@@ -376,7 +408,7 @@ function settlePlayer(world, p, dt) {
       p.falling = false;
       const fall = p.y - p.fallFrom;
       if (world.fx) world.fx.land(p, fall);
-      if (fall > 50 && p.alive) applyDamage(world, p, Math.min(160, Math.round((fall - 50) * 0.7)), null, null);
+      if (fall > 50 && p.alive) applyDamage(world, p, Math.min(160, Math.round((fall - 50) * 0.7)), null, null, false);
       world.lastEventT = world.t;
     }
     p.vy = 0;
@@ -408,7 +440,7 @@ function simulateShot(terrain, players, params) {
   const sp = findP({ players: ps }, params.pid);
   sp.x = params.x; sp.y = params.y; sp.facing = params.facing; sp.angle = params.angle;
   const world = makeWorld(tm, ps, params.wind, params.seed, null);
-  fireShot(world, params.pid, params.weapon, params.angle, params.power);
+  fireShot(world, params.pid, params.weapon, params.angle, params.power, params.item);
   let steps = 0;
   while (!worldSettled(world) && steps < 30 / SIM_DT) { stepWorld(world, SIM_DT); steps++; }
   return shotResult(world, tm.ops);
@@ -419,7 +451,7 @@ function shotResult(world, ops) {
     ops: ops.slice(),
     players: world.players.map(p => ({
       id: p.id, x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10, hp: p.hp, alive: p.alive,
-      sunk: p.sunk, ss: Math.round(p.ss * 10) / 10, freeze: p.freeze, dealt: p.dealt
+      sunk: p.sunk, ss: Math.round(p.ss * 10) / 10, freeze: p.freeze, dealt: p.dealt, taken: p.taken || 0
     }))
   };
 }
