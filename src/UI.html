@@ -198,6 +198,23 @@ function drawPreviews() {
   if (G.screen === 'title') drawParade(now);
   if (G.screen === 'result') { drawPodium(now); Confetti.step(dt); }
   $$('canvas.tprev').forEach(cv => { if (cv.offsetParent) drawTankPreview(cv, now); });
+  $$('canvas.pprev').forEach(cv => { if (cv.offsetParent) drawPilotPreview(cv, now); });
+}
+/** 조종사 초상화 캔버스 (data-tank, data-slot, data-mood, data-pose) */
+function drawPilotPreview(cv, now) {
+  if (typeof drawPilotPortrait !== 'function') return;
+  const f = fitCanvas(cv, 2); if (!f) return;
+  const { ctx, w, h } = f, d = Math.min(w, h);
+  ctx.clearRect(0, 0, w, h);
+  const slot = +cv.dataset.slot || 0, mood = cv.dataset.mood || null, pose = cv.dataset.pose || undefined;
+  drawPilotPortrait(ctx, { tank: cv.dataset.tank, pc: PCOLORS[slot % 4], x: w / 2, y: h / 2, size: d - 2, t: now + slot * 1.7, seedOff: slot + 0.3, mood, pose, frame: true, facing: cv.dataset.flip ? -1 : 1 });
+}
+/** 조종사 한 줄 소개 HTML */
+function pilotBrief(tank, slot, cls) {
+  const P = typeof PILOTS !== 'undefined' && PILOTS[tank];
+  if (!P) return '';
+  return `<div class="pilot ${cls || ''}"><canvas class="pprev" data-tank="${tank}" data-slot="${slot}"></canvas>
+    <div class="pi"><b>${esc(P.name)}${P.title ? ' <span>' + esc(P.title) + '</span>' : ''}</b><small>${P.age}세 · ${esc(P.job)}</small><q>${esc(P.motto)}</q></div></div>`;
 }
 function drawTankPreview(cv, now) {
   const tank = cv.dataset.tank, slot = +cv.dataset.slot || 0, key = cv.dataset.key;
@@ -365,6 +382,7 @@ function slotCard(i, s, teamMode) {
       ${s.editable ? `<button class="arr" data-act="next" data-i="${i}" title="다음 탱크">▶</button>` : '<span></span>'}
     </div>
     <div class="tname">${T.name} <small>${T.en}</small></div>
+    ${pilotBrief(tid, i)}
     <div class="tinfo"><canvas class="radar" data-tank="${tid}" data-slot="${i}"></canvas><div class="tdesc">${T.desc}</div></div>
     <div class="wcards">${T.weapons.map(weaponCard).join('')}</div>
     ${teamMode ? `<div class="teams">${[0, 1, 2].map(t => `<button class="tb ${s.team === t ? 'on' : ''}" ${s.editable ? '' : 'disabled'} data-act="team" data-i="${i}" data-team="${t}" style="--tc:${TEAM_COLORS[t]}">${TEAM_NAMES[t]}</button>`).join('')}</div>` : ''}
@@ -570,7 +588,7 @@ function buildHelp() {
       <div class="dex-top"><canvas class="tprev" data-tank="${id}" data-slot="${i % 4}" data-mode="dex"></canvas>
         <div class="dex-info"><div class="tname">${T.name} <small>${T.en}</small></div><div class="dex-hp">체력 <b>${T.hp}</b> · 연료 <b>${T.fuel}</b></div><div class="tdesc">${T.desc}</div></div>
         <canvas class="radar" data-tank="${id}" data-slot="${i % 4}"></canvas></div>
-      <div class="wcards">${T.weapons.map(weaponCard).join('')}</div></div>`;
+      <div class="wcards">${T.weapons.map(weaponCard).join('')}</div>${dexPilot(id, i % 4)}</div>`;
   }).join('');
   const defItems = { dual: { name: '듀얼', icon: '⚔', desc: '이번 턴에 한 번 더 발사합니다.', key: '4' }, power: { name: '파워업', icon: '💪', desc: '이번 턴 포탄의 데미지가 강해집니다.', key: '5' }, heal: { name: '회복', icon: '💚', desc: '체력을 회복합니다. (발사 없이 사용)', key: '6' } };
   const IT = (typeof ITEMS !== 'undefined' && ITEMS) ? ITEMS : defItems;
@@ -581,6 +599,16 @@ function buildHelp() {
   }).join('') + `<div class="itemnote">아이템은 매치마다 개수가 정해져 있어요. 내 턴에 <kbd>4</kbd><kbd>5</kbd><kbd>6</kbd> 또는 HUD 버튼으로 켜고 끌 수 있습니다.</div>` +
     (EM ? `<h3 class="em-h">감정 표현</h3><div class="emotes">${EM.slice(0, 6).map((e, i) => `<div class="emo"><span>${esc(e.icon || '💬')}</span><b>${esc(e.text || '')}</b>${i < 4 ? `<kbd>${[7, 8, 9, 0][i]}</kbd>` : ''}</div>`).join('')}</div>` : '');
   paintStatic($('#help'));
+}
+/** 도감: 조종사 프로필 카드 */
+function dexPilot(id, slot) {
+  const P = typeof PILOTS !== 'undefined' && PILOTS[id];
+  if (!P) return '';
+  const L = P.lines || {}, pick = k => L[k] && L[k][0] ? `<li><i>${{ turn: '턴 시작', hit: '명중', miss: '빗나감', hurt: '피격', win: '승리' }[k]}</i>“${esc(L[k][0])}”</li>` : '';
+  return `<div class="dex-pilot"><canvas class="pprev" data-tank="${id}" data-slot="${slot}" data-mood="happy"></canvas>
+    <div class="dp-info"><div class="dp-name">${esc(P.name)} ${P.title ? '<span>' + esc(P.title) + '</span>' : ''}<small>${P.age}세 · ${esc(P.job)}</small></div>
+      <p>${esc(P.desc)}</p><div class="dp-like">좋아하는 것: ${esc(P.like)}</div>
+      <ul class="dp-lines">${['turn', 'hit', 'miss', 'win'].map(pick).join('')}</ul></div></div>`;
 }
 function helpTab(name) {
   $$('#help-tabs .tab').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
@@ -730,6 +758,16 @@ function showResult(ev) {
   $('#res-title').textContent = title;
   $('#res-title').style.setProperty('--tc', win.length ? (G.teamMode && win[0].team ? TEAM_COLORS[win[0].team] : win[0].pc.c) : '#cfd8e3');
   $('#res-sub').textContent = `${G.teamMode ? '팀전' : '개인전'} · ${THEMES[G.themeId] ? THEMES[G.themeId].name : ''} 맵 · ${G.players.length}인 대전`;
+  { // 우승 조종사의 한마디
+    let q = $('#res-quote');
+    if (!q) { q = document.createElement('div'); q.id = 'res-quote'; $('#res-title').insertAdjacentElement('afterend', q); }
+    const w0 = win[0], PL = w0 && typeof PILOTS !== 'undefined' && PILOTS[w0.tank];
+    if (PL) {
+      const line = pilotLine(w0.tank, 'win', 777 + (w0.slot || 0));
+      q.innerHTML = `<canvas class="pprev" data-tank="${w0.tank}" data-slot="${w0.slot}" data-pose="win"></canvas><div><q>${esc(line)}</q><small>— ${esc(PL.name)}${PL.title ? ' ' + esc(PL.title) : ''} (${esc(w0.name)})</small></div>`;
+      q.style.display = '';
+    } else q.style.display = 'none';
+  }
   // MVP: 입힌 피해 + 킬 보너스
   const score = p => dealtOf(p) + ((p.stats && p.stats.kills) || 0) * 150 + (winners.has(p.id) ? 50 : 0);
   const mvp = G.players.slice().sort((a, b) => score(b) - score(a))[0];
@@ -741,7 +779,7 @@ function showResult(ev) {
       const st = p.stats || {}, acc = st.shots ? st.hits / st.shots * 100 : undefined;
       return `<div class="rrow ${winners.has(p.id) ? 'win' : ''} ${hasStats ? 'full' : ''}" style="--pc:${p.pc.c};--pl:${p.pc.l};animation-delay:${0.9 + i * 0.12}s">
       <div class="rk">${i < 3 ? medal[i] : i + 1}</div>
-      <div class="rn"><b>${esc(p.name)}${p === mvp ? '<i class="mvp">MVP</i>' : ''}</b><small>${TANKS[p.tank].name}${p.cpu ? ' · CPU' : ''}${G.teamMode && p.team ? ' · ' + TEAM_NAMES[p.team] : ''}</small></div>
+      <div class="rn has-av"><canvas class="pprev ravatar" data-tank="${p.tank}" data-slot="${p.slot}" data-mood="${winners.has(p.id) ? 'happy' : 'sad'}"></canvas><div><b>${esc(p.name)}${p === mvp ? '<i class="mvp">MVP</i>' : ''}</b><small>${TANKS[p.tank].name}${p.cpu ? ' · CPU' : ''}${G.teamMode && p.team ? ' · ' + TEAM_NAMES[p.team] : ''}</small></div></div>
       <div class="rs"><span>입힌 피해</span>${num(dealtOf(p))}</div>
       ${hasStats ? `<div class="rs"><span>받은 피해</span>${num(st.taken)}</div><div class="rs"><span>명중률</span>${acc === undefined ? '<b>-</b>' : num(acc, '%')}</div><div class="rs"><span>킬</span>${num(st.kills || 0)}</div><div class="rs"><span>최고 한방</span>${num(st.maxHit)}</div>` : ''}
       <div class="rs"><span>남은 체력</span>${p.alive ? `<b class="hpb"><i style="width:${clamp(p.hp / p.maxHp * 100, 0, 100)}%"></i><em>${Math.max(0, Math.round(p.hp))}</em></b>` : `<b class="ko">${p.left ? '탈주' : p.sunk ? '추락' : 'K.O.'}</b>`}</div>

@@ -356,6 +356,7 @@ function beginTurn(ev) {
               ai: p.cpu ? { phase: 'think', t: rand(0.5, 1.1) } : null, lastTick: 99, item: null, warned: false };
   }
   const mine = G.ctl && !p.cpu;
+  pilotSay(p, 'turn', ev.no * 13 + 1, 0.45);
   if (!G.attract) {
     Sound.play(mine ? 'myturn' : 'turn');
     banner(mine ? (G.backend.local && humanCount() > 1 ? `${p.name}의 차례!` : '내 차례!') : `${p.name}의 차례`, `바람 ${windText(ev.wind)}`, p.pc.c);
@@ -412,11 +413,29 @@ function finishShot() {
 /* ---------------- 기분(mood) & 감정표현 ---------------- */
 function setMood(p, m, t) { if (p) { p.mood = m; p.moodT = t; } }
 
+/**
+ * 조종사 대사 말풍선 (화면 효과 전용). 확률과 대사 선택 모두 key 로 결정되므로
+ * 온라인의 모든 클라이언트가 같은 순간 같은 대사를 본다. 진짜 이모트가 떠 있으면 덮어쓰지 않는다.
+ */
+function pilotSay(p, kind, key, prob) {
+  if (!p || p.left || G.attract || typeof PILOTS === 'undefined' || !PILOTS[p.tank]) return;
+  if (kind !== 'win' && !p.alive) return;
+  if (p.emote && p.emote.i >= 0 && p.emote.t > 0.4) return;
+  if (hash2(key | 0, (p.slot || 0) + 11, 57) >= prob) return;
+  const text = pilotLine(p.tank, kind, key * 4 + (p.slot || 0));
+  if (text) p.emote = { i: -1, text, icon: PILOTS[p.tank].icon, t: kind === 'win' ? 5 : 2.6, say: kind };
+}
+
 /** 포격 결과에 대한 반응: 쏜 사람 smug/happy/sad, 맞은 사람 angry, CPU 는 가끔 말풍선 */
 function reactToShot(S) {
   const sh = S.shooter;
   S.victims.forEach(v => { if (v.alive) setMood(v, 'angry', 2.5); });
   if (sh && sh.alive) setMood(sh, S.kills.length ? 'smug' : S.enemyHit ? 'happy' : 'sad', 3);
+  // 조종사 대사: 쏜 사람(명중/빗나감) + 가장 많이 맞은 사람
+  const key = (G.turn ? G.turn.no : 0) * 13 + 5;
+  if (sh) pilotSay(sh, S.kills.length || S.dealt >= 150 ? 'hit' : S.enemyHit ? 'hit' : 'miss', key, S.kills.length || S.dealt >= 150 ? 0.85 : 0.55);
+  const vic = S.victims.filter(v => v !== sh && v.alive).sort((a, b) => (b.taken || 0) - (a.taken || 0))[0];
+  if (vic) pilotSay(vic, 'hurt', key + 1, 0.6);
   if (G.screen !== 'play' && !G.attract) return;
   // CPU 말풍선 (내가 조종하는 CPU만 → 온라인에선 방장이 대표로 전송)
   const cpuSay = (p, i, prob) => { if (p && p.cpu && p.alive && G.backend.controls(p) && Math.random() < prob) setTimeout(() => emoteAs(p, i), 400 + Math.random() * 700); };
@@ -685,6 +704,7 @@ function endMatch(ev) {
   // 승자는 우쭐, 나머지는 시무룩 / 로컬 CPU 는 GG
   G.players.forEach(p => {
     setMood(p, ev.winners.indexOf(p.id) >= 0 ? 'smug' : 'sad', 6);
+    if (ev.winners.indexOf(p.id) >= 0) pilotSay(p, 'win', 777 + (p.slot || 0), 1);
     if (G.backend.local && p.cpu && !p.left && Math.random() < 0.6) setTimeout(() => applyEmote(p.id, 5), 300 + Math.random() * 900);
   });
   if (G.attract) { const tok = G.startEv; setTimeout(() => { if (G.attract && G.startEv === tok) startAttract(); }, 2500); return; }

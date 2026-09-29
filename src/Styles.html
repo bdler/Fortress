@@ -383,6 +383,42 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 
 .seg button { border: none; padding: 7px 16px; font-size: 15px; background: #222b4a; color: var(--muted); cursor: pointer; }
 .seg button.on { background: linear-gradient(#ffe57a, var(--gold)); color: #3a2400; }
 
+/* ---------- 조종사 초상화 ---------- */
+canvas.pprev { display: block; }
+.pilot { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,.22); border-radius: 12px; padding: 4px 8px 4px 4px; border: 1px solid rgba(255,255,255,.07); }
+.pilot canvas.pprev { width: 46px; height: 46px; flex: none; filter: drop-shadow(0 2px 0 rgba(0,0,0,.45)); }
+.pilot .pi { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.pilot .pi b { font-weight: normal; font-size: 15px; color: #fff; white-space: nowrap; }
+.pilot .pi b span { font-size: 12px; color: var(--pl, #ffd23f); }
+.pilot .pi small { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pilot .pi q { font-size: 11px; color: #ffe9a8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pilot .pi q::before { content: '“'; } .pilot .pi q::after { content: '”'; }
+.dex-pilot { display: flex; gap: 12px; align-items: flex-start; margin-top: 10px; padding: 10px; border-radius: 14px; background: linear-gradient(90deg, color-mix(in srgb, var(--pc) 22%, rgba(0,0,0,.25)), rgba(0,0,0,.2)); }
+.dex-pilot canvas.pprev { width: 96px; height: 96px; flex: none; }
+.dp-info { min-width: 0; }
+.dp-name { font-size: 18px; color: #fff; } .dp-name span { color: var(--pl); font-size: 14px; } .dp-name small { margin-left: 6px; font-size: 12px; color: var(--muted); }
+.dp-info p { margin: 4px 0; font-size: 13px; line-height: 1.5; color: #d9def0; }
+.dp-like { font-size: 12px; color: var(--muted); }
+.dp-lines { list-style: none; margin: 6px 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 3px 10px; font-size: 12px; color: #ffe9a8; }
+.dp-lines i { font-style: normal; color: var(--muted); margin-right: 5px; font-size: 11px; }
+.rn.has-av { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.rn.has-av > div { min-width: 0; display: flex; flex-direction: column; }
+canvas.ravatar { width: 40px; height: 40px; flex: none; }
+#res-quote { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 2px auto 8px; }
+#res-quote canvas.pprev { width: 64px; height: 64px; }
+#res-quote q { display: block; font-size: 20px; color: #fff; text-shadow: 0 2px 0 #000; }
+#res-quote q::before { content: '“'; } #res-quote q::after { content: '”'; }
+#res-quote small { color: var(--muted); font-size: 13px; }
+@media (max-width: 900px), (max-height: 520px) {
+  .pilot canvas.pprev { width: 36px; height: 36px; }
+  .pilot .pi q { display: none; }
+  .dex-pilot canvas.pprev { width: 64px; height: 64px; }
+  .dp-lines { grid-template-columns: 1fr; }
+  canvas.ravatar { width: 30px; height: 30px; }
+  #res-quote canvas.pprev { width: 44px; height: 44px; }
+  #res-quote q { font-size: 15px; }
+}
+
 /* ---------- 반응형 ---------- */
 @media (max-width: 1100px) {
   .slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
