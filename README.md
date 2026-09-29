@@ -1,4 +1,4 @@
-# 포트리스 4인 대전 (HTML5 + Google Apps Script)
+# 성모포트리스 (HTML5 + Google Apps Script)
 
 추억의 턴제 포격 게임 **포트리스** 스타일을 HTML5 Canvas로 새로 만든 게임입니다.
 서버는 **Google Apps Script(GAS)** 웹앱이라, 별도 서버 없이 구글 계정만 있으면 **최대 4명이 온라인으로** 같이 할 수 있습니다.

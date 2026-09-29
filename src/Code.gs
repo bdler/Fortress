@@ -1,5 +1,5 @@
 /**
- * 포트리스 4인 대전 - Google Apps Script 서버
+ * 성모포트리스 - Google Apps Script 서버
  *
  * 역할
  *  - 웹앱 HTML 제공 (doGet)
@@ -33,7 +33,7 @@ var MAX_SHOT_DELAY = 1700;  // 무기 딜레이 + 이동 + 아이템
 function doGet() {
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
-    .setTitle('포트리스 4인 대전')
+    .setTitle('성모포트리스')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
