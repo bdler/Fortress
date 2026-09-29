@@ -125,7 +125,7 @@ function fitCanvas(cv, maxDpr) {
   return { ctx, w, h };
 }
 function uiFont(px, bold) { return (bold ? '' : '') + px + "px 'Jua', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif"; }
-function hexA(hex, a) { const [r, g, b] = hexToRgb(hex); return `rgba(${r},${g},${b},${a})`; }
+function uiHexA(hex, a) { const [r, g, b] = hexToRgb(hex); return `rgba(${r},${g},${b},${a})`; }
 function star(ctx, x, y, r, n, inner) {
   ctx.beginPath();
   for (let i = 0; i < n * 2; i++) { const a = -Math.PI / 2 + i * Math.PI / n, rr = i % 2 ? r * (inner || 0.45) : r; ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
@@ -152,7 +152,7 @@ function drawRadar(cv, tankId, pc) {
   ctx.beginPath(); for (let i = 0; i < n; i++) { ctx.moveTo(cx, cy); ctx.lineTo(...pt(i, R)); } ctx.strokeStyle = 'rgba(170,190,255,0.18)'; ctx.stroke();
   // 값
   ctx.beginPath(); STAT_AX.forEach(([k], i) => ctx.lineTo(...pt(i, R * st[k] / 5))); ctx.closePath();
-  const g = ctx.createRadialGradient(cx, cy, 2, cx, cy, R); g.addColorStop(0, hexA(pc.l || pc.c, 0.35)); g.addColorStop(1, hexA(pc.c, 0.75));
+  const g = ctx.createRadialGradient(cx, cy, 2, cx, cy, R); g.addColorStop(0, uiHexA(pc.l || pc.c, 0.35)); g.addColorStop(1, uiHexA(pc.c, 0.75));
   ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = pc.l || '#fff'; ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.stroke();
   STAT_AX.forEach(([k], i) => { const [x, y] = pt(i, R * st[k] / 5); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, 2.2, 0, 7); ctx.fill(); ctx.strokeStyle = pc.d; ctx.lineWidth = 1; ctx.stroke(); });
   // 라벨
@@ -209,10 +209,10 @@ function drawTankPreview(cv, now) {
   const s = h / 60, fy = h * 0.88;
   // 회전 받침대
   ctx.save(); ctx.translate(w / 2, fy + 1); ctx.scale(1, 0.24);
-  const g = ctx.createRadialGradient(0, 0, 4, 0, 0, 36 * s); g.addColorStop(0, hexA(pc.c, 0.55)); g.addColorStop(0.7, hexA(pc.c, 0.18)); g.addColorStop(1, hexA(pc.c, 0));
+  const g = ctx.createRadialGradient(0, 0, 4, 0, 0, 36 * s); g.addColorStop(0, uiHexA(pc.c, 0.55)); g.addColorStop(0.7, uiHexA(pc.c, 0.18)); g.addColorStop(1, uiHexA(pc.c, 0));
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 36 * s, 0, 7); ctx.fill();
-  ctx.strokeStyle = hexA(pc.l, 0.5); ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 30 * s, 0, 7); ctx.stroke();
-  ctx.setLineDash([6, 10]); ctx.lineDashOffset = -now * 30; ctx.strokeStyle = hexA(pc.l, 0.35); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 34 * s, 0, 7); ctx.stroke();
+  ctx.strokeStyle = uiHexA(pc.l, 0.5); ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 30 * s, 0, 7); ctx.stroke();
+  ctx.setLineDash([6, 10]); ctx.lineDashOffset = -now * 30; ctx.strokeStyle = uiHexA(pc.l, 0.35); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 34 * s, 0, 7); ctx.stroke();
   ctx.restore();
   // 교체 애니메이션: 옆에서 굴러 들어옴
   let ox = 0, moving = false;

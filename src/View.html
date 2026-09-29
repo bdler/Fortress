@@ -236,7 +236,8 @@ function render(dtIn) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (play) {
     const tl = w2s(0, 0), br = w2s(W, H);
-    ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 3; ctx.strokeRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
+    // 월드 테두리: 위쪽은 하늘로 이어지므로 좌/우/아래만
+    ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(tl.x, tl.y); ctx.lineTo(tl.x, br.y); ctx.lineTo(br.x, br.y); ctx.lineTo(br.x, tl.y); ctx.stroke();
     drawAimGuide(ctx, t, cur);
     drawPlates(ctx, t, cur);
     drawOffscreen(ctx, t);
