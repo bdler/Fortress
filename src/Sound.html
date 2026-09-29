@@ -1,78 +1,347 @@
 <script>
 /* =========================================================
- *  Sound: WebAudio 합성 효과음
+ *  Sound: WebAudio 합성 효과음 (외부 파일 없음)
+ *  - 모든 함수는 init() 전(ctx 없음) / 음소거 / silent 상태에서도 안전
+ *  - 모르는 이름의 play()는 조용히 무시
  * ========================================================= */
-/* ---------------------------------------------------------
- *  사운드 (WebAudio 합성: 외부 파일 없음)
- * --------------------------------------------------------- */
+const SND_GAP = { drill: 0.06, whistle: 0.22, hit: 0.04, boom: 0.05, bounce: 0.05, splash: 0.08, hover: 0.05, tick: 0.05, thunder: 0.3, freeze: 0.1, crit: 0.06, land: 0.08 };
+const SND_AMB = {
+  grass: { f: 520, q: 0.7, v: 0.016, type: 'bandpass' }, desert: { f: 820, q: 1.2, v: 0.028, type: 'bandpass' },
+  snow: { f: 640, q: 1.4, v: 0.032, type: 'bandpass' }, night: { f: 360, q: 0.8, v: 0.011, type: 'bandpass' },
+  volcano: { f: 170, q: 0.7, v: 0.05, type: 'lowpass' }
+};
 const Sound = {
-  ctx: null, master: null, muted: false, noiseBuf: null, moveNode: null,
+  ctx: null, master: null, bus: null, wet: null, muted: false, _silent: false, vol: 0.8, noiseBuf: null, moveNode: null,
+  amb: null, ambWant: null, wind: 0, lastT: {}, voices: 0,
+  get silent() { return this._silent; },
+  set silent(v) { this._silent = !!v; if (this._silent) this.moving(false); this.applyAmb(); },
   init() {
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
     try {
-      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-      this.master = this.ctx.createGain(); this.master.gain.value = 0.5; this.master.connect(this.ctx.destination);
-      const len = this.ctx.sampleRate * 2, b = this.ctx.createBuffer(1, len, this.ctx.sampleRate), d = b.getChannelData(0);
+      const c = this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const comp = c.createDynamicsCompressor(); comp.threshold.value = -14; comp.knee.value = 12; comp.ratio.value = 5; comp.attack.value = 0.003; comp.release.value = 0.2;
+      this.master = c.createGain(); this.master.connect(c.destination); comp.connect(this.master);
+      this.bus = c.createGain(); this.bus.connect(comp);
+      const len = c.sampleRate * 2, b = c.createBuffer(1, len, c.sampleRate), d = b.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
       this.noiseBuf = b;
+      // 잔향 (생성한 임펄스)
+      try {
+        const rl = Math.floor(c.sampleRate * 1.6), ir = c.createBuffer(2, rl, c.sampleRate);
+        for (let ch = 0; ch < 2; ch++) { const e = ir.getChannelData(ch); for (let i = 0; i < rl; i++) e[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / rl, 3); }
+        const cv = c.createConvolver(); cv.buffer = ir; const wg = c.createGain(); wg.gain.value = 0.5;
+        this.wet = c.createGain(); this.wet.connect(cv); cv.connect(wg); wg.connect(comp);
+      } catch (e) { this.wet = null; }
+      this.applyGain(); this.applyAmb();
     } catch (e) { this.ctx = null; }
   },
-  setMuted(m) { this.muted = m; if (this.master) this.master.gain.value = m ? 0 : 0.5; },
-  noise(dur, freq, q, vol, type) {
-    if (!this.ctx) return;
-    const t = this.ctx.currentTime, s = this.ctx.createBufferSource(), f = this.ctx.createBiquadFilter(), g = this.ctx.createGain();
-    s.buffer = this.noiseBuf; f.type = type || 'lowpass'; f.frequency.setValueAtTime(freq, t); f.frequency.exponentialRampToValueAtTime(Math.max(40, freq * 0.2), t + dur);
-    f.Q.value = q || 1; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    s.connect(f); f.connect(g); g.connect(this.master); s.start(t, Math.random()); s.stop(t + dur + 0.05);
+  applyGain() { if (this.master) this.master.gain.setTargetAtTime(this.muted ? 0 : this.vol * 0.7, this.ctx.currentTime, 0.02); },
+  setMuted(m) { this.muted = !!m; this.applyGain(); if (this.muted) this.moving(false); this.applyAmb(); },
+  setVolume(v) { this.vol = clamp(+v || 0, 0, 1); this.applyGain(); },
+  ok() { return !!this.ctx && !this.muted && !this._silent && this.voices < 60; },
+  // ----- 기본 음원 -----
+  env(g, t, vol, att, dur) { g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + att); g.gain.exponentialRampToValueAtTime(0.0008, t + Math.max(att + 0.01, dur)); },
+  route(node, o, t, dur) {
+    node.connect(o.dest || this.bus);
+    if (o.rv && this.wet && !o.dest) { const s = this.ctx.createGain(); s.gain.value = o.rv; node.connect(s); s.connect(this.wet); }
   },
-  tone(f0, f1, dur, vol, type, delay) {
+  track(src, t, dur) { this.voices++; src.onended = () => { this.voices--; }; src.start(t); src.stop(t + dur + 0.05); },
+  osc(o) {
     if (!this.ctx) return;
-    const t = this.ctx.currentTime + (delay || 0), o = this.ctx.createOscillator(), g = this.ctx.createGain();
-    o.type = type || 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
-    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    o.connect(g); g.connect(this.master); o.start(t); o.stop(t + dur + 0.05);
+    const c = this.ctx, t = c.currentTime + (o.delay || 0), dur = o.dur || 0.2, os = c.createOscillator(), g = c.createGain();
+    os.type = o.type || 'sine'; os.frequency.setValueAtTime(o.f0, t);
+    if (o.f1 && o.f1 !== o.f0) os.frequency.exponentialRampToValueAtTime(Math.max(20, o.f1), t + (o.glide || dur));
+    if (o.detune) os.detune.value = o.detune;
+    this.env(g, t, o.vol || 0.2, o.att || 0.008, dur);
+    let n = os;
+    if (o.lp) { const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = o.lp; os.connect(f); n = f; }
+    n.connect(g); this.route(g, o, t, dur); this.track(os, t, dur);
   },
+  nz(o) {
+    if (!this.ctx) return;
+    const c = this.ctx, t = c.currentTime + (o.delay || 0), dur = o.dur || 0.3, s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    s.buffer = this.noiseBuf; f.type = o.ft || 'lowpass'; f.frequency.setValueAtTime(o.f0 || 1000, t);
+    f.frequency.exponentialRampToValueAtTime(Math.max(30, o.f1 || (o.f0 || 1000) * 0.2), t + dur); f.Q.value = o.q || 1;
+    this.env(g, t, o.vol || 0.2, o.att || 0.004, dur);
+    s.connect(f); f.connect(g); this.route(g, o, t, dur);
+    this.voices++; s.onended = () => { this.voices--; }; s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.05);
+  },
+  // 예전 API 호환
+  noise(dur, freq, q, vol, type) { this.nz({ dur, f0: freq, q, vol, ft: type }); },
+  tone(f0, f1, dur, vol, type, delay) { this.osc({ f0, f1, dur, vol, type, delay }); },
+  seq(fs, step, o) { fs.forEach((f, i) => this.osc(Object.assign({ f0: f, f1: f, delay: i * step }, o))); },
+
   play(name, k) {
-    if (!this.ctx || this.muted || this.silent) return;
+    if (!this.ok()) return;
+    const now = this.ctx.currentTime, gap = SND_GAP[name] || 0.025;
+    if (this.lastT[name] !== undefined && now - this.lastT[name] < gap) return;
+    this.lastT[name] = now;
     k = k || 1;
+    const R = (a, b) => a + Math.random() * (b - a);
     switch (name) {
-      case 'fire': this.noise(0.35, 1800, 1, 0.5); this.tone(160, 40, 0.3, 0.5, 'triangle'); break;
-      case 'mega': this.noise(0.6, 1200, 1, 0.7); this.tone(120, 30, 0.6, 0.7, 'sawtooth'); break;
-      case 'missile': this.noise(0.8, 3000, 2, 0.25, 'bandpass'); this.tone(300, 900, 0.4, 0.12, 'sawtooth'); break;
-      case 'plasma': this.tone(1400, 200, 0.35, 0.25, 'sawtooth'); this.tone(700, 1800, 0.2, 0.15, 'square'); break;
-      case 'ice': this.tone(2200, 1200, 0.3, 0.15, 'triangle'); this.tone(3300, 2600, 0.25, 0.1, 'sine', 0.05); break;
-      case 'boom': this.noise(0.5 + 0.5 * k, 900 + 400 * k, 0.8, 0.6 + 0.3 * k); this.tone(90, 30, 0.5 + 0.3 * k, 0.6, 'sine'); break;
-      case 'iceboom': this.noise(0.5, 5000, 3, 0.35, 'highpass'); for (let i = 0; i < 4; i++) this.tone(rand(1800, 3200), rand(900, 1500), 0.3, 0.08, 'triangle', i * 0.05); break;
-      case 'zap': this.tone(2400, 80, 0.9, 0.35, 'sawtooth'); this.noise(0.9, 4000, 2, 0.3, 'bandpass'); break;
-      case 'splash': this.noise(0.6, 2500, 0.7, 0.35, 'bandpass'); break;
-      case 'bounce': this.tone(500, 180, 0.12, 0.25, 'square'); break;
-      case 'drill': this.noise(0.08, 1500, 4, 0.12, 'bandpass'); break;
-      case 'plane': this.tone(90, 70, 2.2, 0.18, 'sawtooth'); this.noise(2.2, 600, 1, 0.12); break;
-      case 'hit': this.tone(220, 110, 0.15, 0.25, 'square'); break;
-      case 'turn': this.tone(660, 660, 0.12, 0.2, 'triangle'); this.tone(990, 990, 0.18, 0.2, 'triangle', 0.12); break;
-      case 'myturn': [523, 659, 784, 1046].forEach((f, i) => this.tone(f, f, 0.14, 0.2, 'triangle', i * 0.08)); break;
-      case 'click': this.tone(900, 700, 0.05, 0.12, 'square'); break;
-      case 'tick': this.tone(1200, 1200, 0.05, 0.12, 'square'); break;
-      case 'win': [523, 659, 784, 659, 784, 1046].forEach((f, i) => this.tone(f, f, 0.2, 0.22, 'triangle', i * 0.14)); break;
-      case 'lose': [392, 349, 311, 262].forEach((f, i) => this.tone(f, f * 0.98, 0.3, 0.2, 'triangle', i * 0.2)); break;
-      case 'die': this.noise(1.2, 700, 0.8, 0.8); this.tone(200, 25, 1.2, 0.5, 'sawtooth'); break;
-      case 'ss': [440, 554, 659, 880].forEach((f, i) => this.tone(f, f * 1.5, 0.25, 0.15, 'sawtooth', i * 0.06)); break;
+      /* --- 발사 --- */
+      case 'fire':
+        this.osc({ f0: 160, f1: 42, dur: 0.38, vol: 0.75, type: 'sine', rv: 0.15 });
+        this.osc({ f0: 320, f1: 90, dur: 0.12, vol: 0.18, type: 'triangle' });
+        this.nz({ dur: 0.42, f0: 2800, f1: 260, vol: 0.55, rv: 0.25 });
+        this.nz({ dur: 0.05, f0: 5000, ft: 'highpass', vol: 0.3 });
+        break;
+      case 'mega':
+        this.osc({ f0: 120, f1: 26, dur: 0.9, vol: 0.9, rv: 0.3 });
+        this.osc({ f0: 95, f1: 30, dur: 0.6, vol: 0.2, type: 'sawtooth', lp: 500 });
+        this.nz({ dur: 0.9, f0: 1800, f1: 120, vol: 0.8, rv: 0.4 });
+        this.nz({ dur: 0.08, f0: 4500, ft: 'highpass', vol: 0.35 });
+        break;
+      case 'missile':
+        this.nz({ dur: 0.18, f0: 1500, ft: 'bandpass', q: 1.2, vol: 0.45 });
+        this.nz({ dur: 1.0, f0: 600, f1: 3600, ft: 'bandpass', q: 2, vol: 0.3, att: 0.08, rv: 0.2 });
+        this.osc({ f0: 180, f1: 760, dur: 0.55, vol: 0.06, type: 'sawtooth', lp: 1500 });
+        this.osc({ f0: 110, f1: 60, dur: 0.2, vol: 0.4 });
+        break;
+      case 'plasma':
+        this.osc({ f0: 1700, f1: 170, dur: 0.38, vol: 0.16, type: 'sawtooth', rv: 0.3 });
+        this.osc({ f0: 520, f1: 1900, dur: 0.18, vol: 0.09, type: 'square' });
+        this.osc({ f0: 90, f1: 40, dur: 0.3, vol: 0.35 });
+        this.seq([2400, 3000, 3600], 0.03, { dur: 0.05, vol: 0.04, type: 'square' });
+        break;
+      case 'ice':
+        [1320, 3643, 7128].forEach((f, i) => this.osc({ f0: f, f1: f * 0.995, dur: 0.7 - i * 0.18, vol: 0.14 / (i + 1), type: i ? 'sine' : 'triangle', rv: 0.5 }));
+        this.osc({ f0: 1980, f1: 1970, dur: 0.5, vol: 0.06, type: 'sine', delay: 0.06, rv: 0.5 });
+        this.nz({ dur: 0.25, f0: 7000, ft: 'highpass', vol: 0.14 });
+        this.osc({ f0: 140, f1: 60, dur: 0.18, vol: 0.35 });
+        break;
+      case 'bombfire':
+        this.osc({ f0: 110, f1: 55, dur: 0.2, vol: 0.55 });
+        this.osc({ f0: 340, f1: 220, dur: 0.06, vol: 0.12, type: 'square' });
+        this.nz({ dur: 0.35, f0: 800, f1: 2400, ft: 'bandpass', q: 1.5, vol: 0.25, att: 0.05 });
+        break;
+      case 'whistle': {
+        const f = 2300 / Math.pow(k, 0.4);
+        this.osc({ f0: f, f1: f * 0.32, dur: 1.4, vol: 0.045, type: 'sine', att: 0.25 });
+        this.osc({ f0: f * 1.01, f1: f * 0.33, dur: 1.4, vol: 0.02, type: 'triangle', att: 0.25 });
+        break;
+      }
+      case 'split':
+        this.osc({ f0: 900, f1: 280, dur: 0.1, vol: 0.2, type: 'triangle' });
+        this.nz({ dur: 0.06, f0: 4000, ft: 'highpass', vol: 0.2 });
+        this.osc({ f0: 180, f1: 70, dur: 0.15, vol: 0.3 });
+        break;
+      /* --- 폭발 --- */
+      case 'boom': {
+        const b = clamp(k, 0.3, 2.2);
+        this.osc({ f0: 80 + 20 / b, f1: 28, dur: 0.55 + 0.4 * b, vol: 0.65 + 0.15 * b, rv: 0.2 });
+        this.nz({ dur: 0.6 + 0.6 * b, f0: 900 + 600 * b, f1: 90, vol: 0.45 + 0.25 * b, rv: 0.35 });
+        this.nz({ dur: 0.07, f0: 3500, ft: 'highpass', vol: 0.3 });
+        for (let i = 0; i < 3 + b * 3; i++) this.nz({ dur: 0.03, f0: R(1500, 4000), ft: 'bandpass', q: 3, vol: 0.08, delay: R(0.08, 0.6) });
+        break;
+      }
+      case 'megaboom':
+        this.play('boom', 2.2); this.lastT.boom = undefined;
+        this.nz({ dur: 2.6, f0: 380, f1: 60, vol: 0.55, att: 0.1, rv: 0.4 });
+        this.osc({ f0: 48, f1: 24, dur: 1.8, vol: 0.6 });
+        for (let i = 0; i < 10; i++) this.nz({ dur: 0.04, f0: R(1200, 3500), ft: 'bandpass', q: 3, vol: 0.07, delay: R(0.3, 1.6) });
+        break;
+      case 'plasmaboom':
+        this.osc({ f0: 900, f1: 55, dur: 0.55, vol: 0.14, type: 'sawtooth', rv: 0.4 });
+        this.seq([1800, 1200, 2400, 900], 0.045, { dur: 0.06, vol: 0.05, type: 'square' });
+        this.nz({ dur: 0.45, f0: 3200, ft: 'bandpass', q: 1.5, vol: 0.22, rv: 0.3 });
+        break;
+      case 'iceboom':
+        this.nz({ dur: 0.55, f0: 6000, ft: 'highpass', q: 1, vol: 0.32, rv: 0.4 });
+        this.osc({ f0: 120, f1: 45, dur: 0.4, vol: 0.45 });
+        for (let i = 0; i < 9; i++) { const f = R(1800, 5200); this.osc({ f0: f, f1: f * 0.8, dur: R(0.15, 0.4), vol: 0.05, type: 'triangle', delay: i * 0.035 + R(0, 0.03), rv: 0.5 }); }
+        break;
+      case 'zap':
+        this.osc({ f0: 2600, f1: 70, dur: 1.2, vol: 0.28, type: 'sawtooth', lp: 3000, rv: 0.4 });
+        this.osc({ f0: 62, f1: 40, dur: 1.2, vol: 0.55 });
+        this.osc({ f0: 124, f1: 118, dur: 1.0, vol: 0.12, type: 'square', lp: 900 });
+        this.nz({ dur: 1.1, f0: 4200, f1: 900, ft: 'bandpass', q: 2, vol: 0.3, rv: 0.3 });
+        this.nz({ dur: 1.4, f0: 600, f1: 80, vol: 0.5, att: 0.05 });
+        break;
+      case 'lockon':
+        this.seq([1600, 1600, 2000], 0.3, { dur: 0.08, vol: 0.09, type: 'triangle' });
+        this.osc({ f0: 240, f1: 1400, dur: 0.95, vol: 0.06, type: 'sawtooth', lp: 2200, att: 0.4 });
+        break;
+      case 'splash':
+        this.nz({ dur: 0.6 * k, f0: 2800, f1: 500, ft: 'bandpass', q: 0.8, vol: 0.38, rv: 0.2 });
+        this.osc({ f0: 180, f1: 70, dur: 0.2, vol: 0.3 });
+        for (let i = 0; i < 5; i++) { const f = R(600, 1200); this.osc({ f0: f, f1: f * 1.8, dur: 0.06, vol: 0.05, delay: R(0.1, 0.6) }); }
+        break;
+      case 'lavasplash':
+        this.nz({ dur: 0.7, f0: 900, f1: 150, vol: 0.4 });
+        this.nz({ dur: 1.3, f0: 5000, ft: 'highpass', vol: 0.12, att: 0.1 });
+        this.osc({ f0: 200, f1: 80, dur: 0.3, vol: 0.3 });
+        break;
+      case 'bounce':
+        this.osc({ f0: 220, f1: 620, dur: 0.16, vol: 0.18, type: 'sine', glide: 0.08 });
+        this.osc({ f0: 130, f1: 60, dur: 0.12, vol: 0.35 });
+        this.nz({ dur: 0.08, f0: 1400, vol: 0.2 });
+        break;
+      case 'drill':
+        this.nz({ dur: 0.1, f0: 1600, ft: 'bandpass', q: 4, vol: 0.13 });
+        this.osc({ f0: 95, f1: 75, dur: 0.1, vol: 0.05, type: 'square' });
+        break;
+      case 'plane':
+        this.osc({ f0: 78, f1: 96, dur: 3.2, vol: 0.14, type: 'sawtooth', lp: 420, att: 1.0 });
+        this.osc({ f0: 39, f1: 47, dur: 3.2, vol: 0.12, type: 'square', lp: 200, att: 1.0 });
+        this.nz({ dur: 3.2, f0: 700, f1: 400, vol: 0.12, att: 1.2 });
+        break;
+      case 'storm':
+        this.nz({ dur: 2.6, f0: 380, f1: 900, ft: 'bandpass', q: 1.5, vol: 0.25, att: 0.8 });
+        this.play('thunder', 1);
+        break;
+      case 'thunder':
+        this.nz({ dur: 0.12, f0: 3000, ft: 'highpass', vol: 0.25 * k, rv: 0.5 });
+        this.nz({ dur: 1.8, f0: 420, f1: 60, vol: 0.45 * k, att: 0.05, rv: 0.5 });
+        break;
+      /* --- 피격 --- */
+      case 'hit':
+        this.osc({ f0: 250, f1: 110, dur: 0.14, vol: 0.22, type: 'square', lp: 1800 });
+        this.nz({ dur: 0.1, f0: 2200, ft: 'bandpass', q: 2, vol: 0.2 });
+        break;
+      case 'crit':
+        this.osc({ f0: 70, f1: 35, dur: 0.3, vol: 0.5 });
+        [880, 1243, 1767].forEach(f => this.osc({ f0: f, f1: f * 0.98, dur: 0.45, vol: 0.09, type: 'triangle', rv: 0.4 }));
+        this.nz({ dur: 0.12, f0: 3000, ft: 'bandpass', q: 1.5, vol: 0.28 });
+        this.osc({ f0: 300, f1: 120, dur: 0.16, vol: 0.2, type: 'square', lp: 2000 });
+        break;
+      case 'freeze':
+        this.nz({ dur: 0.5, f0: 5500, f1: 8000, ft: 'highpass', vol: 0.18, rv: 0.3 });
+        for (let i = 0; i < 5; i++) this.osc({ f0: 3200 - i * 350, f1: 2600 - i * 350, dur: 0.12, vol: 0.05, type: 'triangle', delay: i * 0.05, rv: 0.4 });
+        break;
+      case 'die':
+        this.nz({ dur: 1.4, f0: 800, f1: 70, vol: 0.8, rv: 0.4 });
+        this.osc({ f0: 200, f1: 25, dur: 1.3, vol: 0.4, type: 'sawtooth', lp: 700 });
+        this.osc({ f0: 55, f1: 25, dur: 1.2, vol: 0.6 });
+        this.seq([392, 330, 262], 0.16, { dur: 0.2, vol: 0.06, type: 'square', lp: 1500, delay: 0.3 });
+        break;
+      case 'drown':
+        for (let i = 0; i < 8; i++) { const f = R(250, 500); this.osc({ f0: f, f1: f * 2.4, dur: 0.07, vol: 0.08, delay: i * 0.12 + R(0, 0.08) }); }
+        break;
+      case 'land':
+        this.osc({ f0: 110, f1: 40, dur: 0.25, vol: 0.4 * clamp(k, 0.4, 1.5) });
+        this.nz({ dur: 0.25, f0: 500, vol: 0.28 * clamp(k, 0.4, 1.5) });
+        this.osc({ f0: 420, f1: 300, dur: 0.05, vol: 0.06, type: 'square', delay: 0.02 });
+        break;
+      /* --- 아이템/감정표현/UI --- */
+      case 'item':
+        this.seq([880, 1109, 1319, 1760, 2217], 0.05, { dur: 0.14, vol: 0.09, type: 'triangle', rv: 0.4 });
+        this.osc({ f0: 3520, f1: 3600, dur: 0.4, vol: 0.03, delay: 0.25, rv: 0.5 });
+        break;
+      case 'heal':
+        [523, 659, 784].forEach((f, i) => this.osc({ f0: f, f1: f * 1.02, dur: 0.7, vol: 0.07, type: 'sine', att: 0.08, delay: i * 0.04, rv: 0.4 }));
+        this.seq([1568, 2093, 2637], 0.07, { dur: 0.18, vol: 0.04, type: 'triangle', delay: 0.15 });
+        break;
+      case 'emote':
+        this.osc({ f0: 620, f1: 920, dur: 0.08, vol: 0.12, type: 'sine' });
+        this.osc({ f0: 920, f1: 1320, dur: 0.1, vol: 0.1, type: 'sine', delay: 0.08 });
+        break;
+      case 'turnwarn': this.seq([988, 988], 0.14, { dur: 0.09, vol: 0.12, type: 'square', lp: 2500 }); break;
+      case 'select': this.osc({ f0: 1200, f1: 1500, dur: 0.06, vol: 0.1, type: 'triangle' }); this.osc({ f0: 1800, f1: 1800, dur: 0.06, vol: 0.06, type: 'sine', delay: 0.04 }); break;
+      case 'hover': this.osc({ f0: 1500, f1: 1600, dur: 0.035, vol: 0.035, type: 'sine' }); break;
+      case 'whoosh': this.nz({ dur: 0.35, f0: 400, f1: 2600, ft: 'bandpass', q: 1.4, vol: 0.2, att: 0.12 }); break;
+      case 'ready': this.seq([659, 880, 1319], 0.09, { dur: 0.16, vol: 0.12, type: 'triangle', rv: 0.3 }); break;
+      case 'turn': this.osc({ f0: 660, f1: 660, dur: 0.12, vol: 0.18, type: 'triangle' }); this.osc({ f0: 990, f1: 990, dur: 0.2, vol: 0.18, type: 'triangle', delay: 0.12, rv: 0.2 }); break;
+      case 'myturn': this.seq([523, 659, 784, 1046], 0.08, { dur: 0.16, vol: 0.18, type: 'triangle', rv: 0.25 }); this.osc({ f0: 2093, f1: 2093, dur: 0.3, vol: 0.04, delay: 0.32, rv: 0.4 }); break;
+      case 'click': this.osc({ f0: 900, f1: 700, dur: 0.05, vol: 0.12, type: 'square', lp: 3000 }); break;
+      case 'tick': this.osc({ f0: 1250, f1: 1250, dur: 0.05, vol: 0.11, type: 'square', lp: 3000 }); break;
+      case 'win':
+        this.seq([523, 659, 784, 659, 784, 1046], 0.14, { dur: 0.22, vol: 0.2, type: 'triangle', rv: 0.3 });
+        this.seq([262, 330, 392, 330, 392, 523], 0.14, { dur: 0.22, vol: 0.08, type: 'square', lp: 1200 });
+        break;
+      case 'lose': this.seq([392, 349, 311, 262], 0.2, { dur: 0.32, vol: 0.18, type: 'triangle', rv: 0.3 }); break;
+      case 'ss':
+        this.seq([440, 554, 659, 880], 0.06, { dur: 0.25, vol: 0.13, type: 'sawtooth', lp: 3000, rv: 0.3 });
+        this.osc({ f0: 110, f1: 55, dur: 0.6, vol: 0.4, delay: 0.24 });
+        break;
+      default: break; // 모르는 이름은 무시
     }
   },
   charge(p) {
-    if (!this.ctx || this.muted || this.silent) return;
-    this.tone(200 + p * 8, 210 + p * 8, 0.05, 0.05, 'square');
+    if (!this.ok()) return;
+    this.osc({ f0: 180 + p * 9, f1: 190 + p * 9, dur: 0.06, vol: 0.045, type: 'triangle' });
   },
   moving(on) {
     if (!this.ctx) return;
-    if (on && !this.moveNode && !this.muted && !this.silent) {
-      const o = this.ctx.createOscillator(), g = this.ctx.createGain(), f = this.ctx.createBiquadFilter();
-      o.type = 'sawtooth'; o.frequency.value = 55; f.type = 'lowpass'; f.frequency.value = 260; g.gain.value = 0.12;
-      o.connect(f); f.connect(g); g.connect(this.master); o.start();
-      this.moveNode = { o, g };
+    if (on && !this.moveNode && !this.muted && !this._silent) {
+      const c = this.ctx, o = c.createOscillator(), o2 = c.createOscillator(), g = c.createGain(), f = c.createBiquadFilter(), lfo = c.createOscillator(), lg = c.createGain();
+      o.type = 'sawtooth'; o.frequency.value = 52; o2.type = 'square'; o2.frequency.value = 26; f.type = 'lowpass'; f.frequency.value = 300;
+      g.gain.value = 0.0001; g.gain.setTargetAtTime(0.1, c.currentTime, 0.05);
+      lfo.frequency.value = 11; lg.gain.value = 0.035; lfo.connect(lg); lg.connect(g.gain);
+      o.connect(f); o2.connect(f); f.connect(g); g.connect(this.bus); o.start(); o2.start(); lfo.start();
+      this.moveNode = { os: [o, o2, lfo], g };
     } else if (!on && this.moveNode) {
       const n = this.moveNode; this.moveNode = null;
-      n.g.gain.setTargetAtTime(0, this.ctx.currentTime, 0.05); n.o.stop(this.ctx.currentTime + 0.3);
+      const t = this.ctx.currentTime;
+      n.g.gain.cancelScheduledValues(t); n.g.gain.setTargetAtTime(0, t, 0.05);
+      n.os.forEach(o => { try { o.stop(t + 0.3); } catch (e) { } });
+    }
+  },
+  /* ---------- 테마 환경음 ---------- */
+  setAmbient(id) { this.ambWant = id && SND_AMB[id] ? id : null; this.applyAmb(); },
+  setWind(w) {
+    this.wind = clamp(+w || 0, -10, 10);
+    const a = this.amb; if (!a || !this.ctx) return;
+    const t = this.ctx.currentTime, P = SND_AMB[a.id], aw = Math.abs(this.wind);
+    a.wg.gain.setTargetAtTime(P.v * (1 + aw * 0.15), t, 0.5);
+    a.filt.frequency.setTargetAtTime(P.f * (1 + aw * 0.06), t, 0.5);
+  },
+  applyAmb() {
+    const want = this.ctx && !this.muted && !this._silent ? this.ambWant : null;
+    if (this.amb && this.amb.id === want) return;
+    if (this.amb) this.stopAmb();
+    if (want) this.startAmb(want);
+  },
+  startAmb(id) {
+    try {
+      const c = this.ctx, t = c.currentTime, P = SND_AMB[id];
+      const out = c.createGain(); out.gain.setValueAtTime(0.0001, t); out.gain.linearRampToValueAtTime(1, t + 1.5); out.connect(this.bus);
+      const src = c.createBufferSource(); src.buffer = this.noiseBuf; src.loop = true;
+      const filt = c.createBiquadFilter(); filt.type = P.type; filt.frequency.value = P.f; filt.Q.value = P.q;
+      const wg = c.createGain(); wg.gain.value = P.v;
+      const lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = 0.13; lg.gain.value = P.f * 0.45; lfo.connect(lg); lg.connect(filt.frequency);
+      const lfo2 = c.createOscillator(), lg2 = c.createGain(); lfo2.frequency.value = 0.07; lg2.gain.value = P.v * 0.5; lfo2.connect(lg2); lg2.connect(wg.gain);
+      src.connect(filt); filt.connect(wg); wg.connect(out); src.start(); lfo.start(); lfo2.start();
+      const a = this.amb = { id, out, src, filt, wg, os: [src, lfo, lfo2] };
+      a.timer = setInterval(() => this.ambTick(a), 150);
+      this.setWind(this.wind);
+    } catch (e) { this.amb = null; }
+  },
+  stopAmb() {
+    const a = this.amb; this.amb = null;
+    if (!a) return;
+    clearInterval(a.timer);
+    try {
+      const t = this.ctx.currentTime;
+      a.out.gain.cancelScheduledValues(t); a.out.gain.setTargetAtTime(0, t, 0.12);
+      a.os.forEach(o => { try { o.stop(t + 0.6); } catch (e) { } });
+      setTimeout(() => { try { a.out.disconnect(); } catch (e) { } }, 800);
+    } catch (e) { }
+  },
+  ambTick(a) {
+    if (this.amb !== a || !this.ctx || this.muted || this._silent || this.ctx.state !== 'running') return;
+    const d = a.out, r = Math.random, R = (x, y) => x + r() * (y - x);
+    switch (a.id) {
+      case 'grass':
+        if (r() < 0.05) { const b = R(2400, 3600), n = 2 + (r() * 3 | 0); for (let i = 0; i < n; i++) this.osc({ f0: b, f1: b * R(1.15, 1.4), dur: 0.07, vol: 0.018, dest: d, delay: i * R(0.09, 0.14) }); }
+        if (r() < 0.01) this.osc({ f0: 1800, f1: 2600, dur: 0.25, vol: 0.012, dest: d, glide: 0.12 });
+        break;
+      case 'desert':
+        if (r() < 0.006) this.osc({ f0: 1900, f1: 1300, dur: 0.7, vol: 0.012, dest: d, att: 0.1 });
+        if (r() < 0.03) this.nz({ dur: R(0.6, 1.2), f0: 3000, f1: 5000, ft: 'bandpass', q: 1, vol: 0.012, att: 0.3, dest: d });
+        break;
+      case 'snow':
+        if (r() < 0.025) this.nz({ dur: R(1, 1.8), f0: 500, f1: 1300, ft: 'bandpass', q: 3, vol: 0.02, att: 0.5, dest: d });
+        if (r() < 0.02) { const f = R(3000, 5000); this.osc({ f0: f, f1: f, dur: 0.3, vol: 0.006, dest: d }); }
+        break;
+      case 'night':
+        if (r() < 0.3) { const f = R(4200, 4700); for (let i = 0; i < 3; i++) this.osc({ f0: f, f1: f, dur: 0.025, vol: 0.007, dest: d, att: 0.004, delay: i * 0.045 }); }
+        if (r() < 0.004) { this.osc({ f0: 420, f1: 380, dur: 0.35, vol: 0.02, dest: d, att: 0.06 }); this.osc({ f0: 400, f1: 360, dur: 0.5, vol: 0.02, dest: d, att: 0.06, delay: 0.45 }); }
+        break;
+      case 'volcano':
+        if (r() < 0.3) this.nz({ dur: 0.02, f0: R(2000, 6000), ft: 'highpass', vol: R(0.01, 0.03), dest: d });
+        if (r() < 0.035) this.osc({ f0: R(90, 140), f1: R(220, 320), dur: 0.14, vol: 0.03, dest: d });
+        break;
     }
   }
 };
