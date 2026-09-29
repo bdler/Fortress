@@ -11,31 +11,49 @@
 
 <!-- 하단 HUD -->
 <div id="hud" class="hidden">
-  <div class="hud-l">
-    <canvas id="hud-portrait" width="140" height="84"></canvas>
+  <div class="hud-l hp-panel">
+    <i class="screw tl"></i><i class="screw tr"></i><i class="screw bl"></i><i class="screw br"></i>
+    <div class="pframe"><canvas id="hud-portrait" width="176" height="128"></canvas><span class="pbadge" id="hud-pbadge"></span></div>
     <div class="hud-info">
-      <div class="hud-nm"><b id="hud-name"></b><small id="hud-tank"></small></div>
-      <div class="bar hp"><i id="hud-hp"></i><span id="hud-hp-t"></span></div>
-      <div class="bar ss"><i id="hud-ss"></i><span>SS</span></div>
+      <div class="hud-nm"><b id="hud-name"></b><small id="hud-tank"></small><em id="hud-tag"></em></div>
+      <div class="bar hp"><i class="lag" id="hud-hp-lag"></i><i class="cur" id="hud-hp"></i><span id="hud-hp-t"></span></div>
+      <div class="ssg" id="hud-ssg"><b>SS</b><div class="segs" id="hud-ss"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span id="hud-ss-t">0%</span></div>
     </div>
   </div>
-  <div class="hud-m">
-    <div class="dial"><canvas id="hud-angle" width="96" height="96"></canvas><b id="hud-angle-t">45°</b></div>
+  <div class="hud-m hp-panel">
+    <i class="screw tl"></i><i class="screw tr"></i><i class="screw bl"></i><i class="screw br"></i>
+    <div class="dial"><canvas id="hud-angle" width="120" height="120"></canvas><b id="hud-angle-t">45°</b></div>
     <div class="gauges">
-      <div class="glabel"><span>POWER</span><b id="hud-power-t">0</b></div>
-      <div class="gauge power"><i id="hud-power"></i><em id="hud-lastpower" title="지난 파워"></em><div class="ticks"></div></div>
-      <div class="glabel mv"><span>MOVE</span></div>
+      <div class="glabel"><span>POWER</span><em id="hud-live"></em><b id="hud-power-t">0</b></div>
+      <div class="gauge power"><i id="hud-power"></i><u id="hud-power-head"></u><div class="ticks"></div><em id="hud-lastpower" title="지난 파워"></em></div>
+      <div class="gscale"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+      <div class="glabel mv"><span>MOVE</span><b id="hud-move-t"></b></div>
       <div class="gauge move"><i id="hud-move"></i></div>
     </div>
     <div id="hud-weapons" class="weapons">
-      <button class="wbtn"><kbd>1</kbd><span class="wn"></span><span class="wd"></span></button>
-      <button class="wbtn"><kbd>2</kbd><span class="wn"></span><span class="wd"></span></button>
-      <button class="wbtn ssw"><kbd>SS</kbd><span class="wn"></span><span class="wd"></span></button>
+      <button class="wbtn"><canvas class="wic" width="96" height="48"></canvas><kbd>1</kbd><span class="wn"></span><span class="wd"></span></button>
+      <button class="wbtn"><canvas class="wic" width="96" height="48"></canvas><kbd>2</kbd><span class="wn"></span><span class="wd"></span></button>
+      <button class="wbtn ssw"><canvas class="wic" width="96" height="48"></canvas><kbd>SS</kbd><span class="wn"></span><span class="wd"></span><span class="lock">🔒</span></button>
+    </div>
+    <div id="hud-items" class="items"></div>
+  </div>
+  <div class="hud-r hp-panel">
+    <i class="screw tl"></i><i class="screw tr"></i><i class="screw bl"></i><i class="screw br"></i>
+    <div class="wind"><div class="wl">WIND</div><canvas id="hud-wind" width="180" height="36"></canvas><div id="wind-t"></div></div>
+    <div class="timer" id="hud-timer">
+      <svg viewBox="0 0 64 64"><circle class="trk" cx="32" cy="32" r="27"></circle><circle class="rng" id="hud-timer-rng" cx="32" cy="32" r="27"></circle></svg>
+      <b id="hud-timer-t">25</b>
+    </div>
+    <div class="hbtns">
+      <button id="btn-emote" title="감정 표현 (7·8·9·0)">😀</button>
+      <button id="btn-view" title="전체 보기 (V)">🔍</button>
+      <button id="btn-skip" title="턴 넘기기 (Tab)">⏭</button>
+      <button id="btn-mute" title="소리">🔊</button>
+      <button id="btn-quit" title="나가기">⏏</button>
     </div>
   </div>
-  <div class="hud-r">
-    <div class="wind"><div class="wl">WIND</div><div class="wbar"><div class="side l"><i id="wind-l"></i></div><div class="side r"><i id="wind-r"></i></div></div><div id="wind-t"></div></div>
-    <div class="timer" id="hud-timer">25</div>
-    <div class="hbtns"><button id="btn-skip" title="턴 넘기기 (Tab)">⏭</button><button id="btn-mute" title="소리">🔊</button><button id="btn-quit" title="나가기">⏏</button></div>
-  </div>
 </div>
+<!-- 상단: 턴 순서 -->
+<div id="turnbar"></div>
+<!-- 감정 표현 팝업 -->
+<div id="emote-pop"></div>
