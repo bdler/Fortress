@@ -209,11 +209,11 @@ const Sound = {
         this.nz({ dur: 0.5, f0: 5500, f1: 8000, ft: 'highpass', vol: 0.18, rv: 0.3 });
         for (let i = 0; i < 5; i++) this.osc({ f0: 3200 - i * 350, f1: 2600 - i * 350, dur: 0.12, vol: 0.05, type: 'triangle', delay: i * 0.05, rv: 0.4 });
         break;
-      case 'die':
-        this.nz({ dur: 1.4, f0: 800, f1: 70, vol: 0.8, rv: 0.4 });
-        this.osc({ f0: 200, f1: 25, dur: 1.3, vol: 0.4, type: 'sawtooth', lp: 700 });
-        this.osc({ f0: 55, f1: 25, dur: 1.2, vol: 0.6 });
-        this.seq([392, 330, 262], 0.16, { dur: 0.2, vol: 0.06, type: 'square', lp: 1500, delay: 0.3 });
+      case 'die': // 기절: '뿅' + 뾰로롱 내려가는 소리 (무서운 폭발음 대신)
+        this.nz({ dur: 0.35, f0: 1400, f1: 300, vol: 0.35, rv: 0.3 });
+        this.osc({ f0: 880, f1: 180, dur: 0.9, vol: 0.14, type: 'triangle', rv: 0.3 });
+        this.seq([659, 523, 440, 330], 0.13, { dur: 0.16, vol: 0.06, type: 'square', lp: 1800, delay: 0.25 });
+        for (let i = 0; i < 3; i++) this.osc({ f0: 1760 + i * 220, f1: 2100 + i * 220, dur: 0.08, vol: 0.035, type: 'sine', delay: 0.9 + i * 0.1, rv: 0.4 });
         break;
       case 'drown':
         for (let i = 0; i < 8; i++) { const f = R(250, 500); this.osc({ f0: f, f1: f * 2.4, dur: 0.07, vol: 0.08, delay: i * 0.12 + R(0, 0.08) }); }

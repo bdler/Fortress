@@ -414,7 +414,7 @@ function finishShot() {
 function setMood(p, m, t) { if (p) { p.mood = m; p.moodT = t; } }
 
 /**
- * 조종사 대사 말풍선 (화면 효과 전용). 확률과 대사 선택 모두 key 로 결정되므로
+ * 캐릭터 대사 말풍선 (화면 효과 전용). 확률과 대사 선택 모두 key 로 결정되므로
  * 온라인의 모든 클라이언트가 같은 순간 같은 대사를 본다. 진짜 이모트가 떠 있으면 덮어쓰지 않는다.
  */
 function pilotSay(p, kind, key, prob) {
@@ -431,7 +431,7 @@ function reactToShot(S) {
   const sh = S.shooter;
   S.victims.forEach(v => { if (v.alive) setMood(v, 'angry', 2.5); });
   if (sh && sh.alive) setMood(sh, S.kills.length ? 'smug' : S.enemyHit ? 'happy' : 'sad', 3);
-  // 조종사 대사: 쏜 사람(명중/빗나감) + 가장 많이 맞은 사람
+  // 캐릭터 대사: 쏜 사람(명중/빗나감) + 가장 많이 맞은 사람
   const key = (G.turn ? G.turn.no : 0) * 13 + 5;
   if (sh) pilotSay(sh, S.kills.length || S.dealt >= 150 ? 'hit' : S.enemyHit ? 'hit' : 'miss', key, S.kills.length || S.dealt >= 150 ? 0.85 : 0.55);
   const vic = S.victims.filter(v => v !== sh && v.alive).sort((a, b) => (b.taken || 0) - (a.taken || 0))[0];

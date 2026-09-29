@@ -484,24 +484,22 @@ class Effects {
       for (let i = 0; i < 5; i++) this.add({ type: 'cross', x: p.x + rand(-20, 20), y: p.y - rand(4, 26), vx: 0, vy: -rand(30, 55), life: 0, delay: i * 0.08, max: 1.1, size: rand(4, 6.5), color: '#46e06c' });
     }
   }
+  /** 탈락 연출 — 아이들용: 부서지지 않고 '뿅' 하고 기절 (하얀 구름 + 튀어 오르는 별, 탱크는 제자리에서 뱅글뱅글) */
   death(p, drown) {
     this.snd('die');
-    this.label(p.x, p.y - 70, drown ? '추락!' : 'K.O.!', drown ? '#8fd8ff' : '#ffffff', 34, { max: 2.2, labels: [], ko: 1 });
+    this.label(p.x, p.y - 70, drown ? '풍덩!' : '기절!', drown ? '#8fd8ff' : '#fff08a', 34, { max: 2.2, labels: [], ko: 1 });
     if (drown) {
       this.snd('drown');
       for (let i = 0; i < 16; i++) this.add({ type: 'bubble', x: p.x + rand(-18, 18), y: SEA + rand(6, 20), vx: 0, vy: -rand(18, 40), life: 0, delay: rand(0, 1.6), max: 1.4, size: rand(1.5, 3.5), rot: rand(0, 6) });
       return;
     }
-    this.explode(p.x, p.y - 14, 46, 'fire', false);
-    this.flash = Math.max(this.flash, 0.5); this.shake = Math.max(this.shake, 22);
-    const T = TANKS[p.tank] || { c1: '#888888', c2: '#555555' }, sd = rand(0, 1) < 0.5 ? -1 : 1;
-    // 포탑이 날아감
-    this.add({ type: 'chunk', kind: 'turret', x: p.x, y: p.y - 26, vx: sd * rand(60, 150), vy: -rand(380, 470), g: 520, drag: 0.995, life: 0, max: 3.4, rot: 0, vr: sd * rand(6, 11), size: 1.35, c1: T.c1, c2: T.c2, smk: 40 });
-    for (let i = 0; i < 4; i++) this.add({ type: 'chunk', kind: i < 2 ? 'plate' : 'wheel', x: p.x + rand(-12, 12), y: p.y - rand(4, 18), vx: rand(-200, 200), vy: -rand(220, 400), g: 540, drag: 0.995, life: 0, max: rand(2.4, 3.2), rot: rand(0, 6), vr: rand(-14, 14), size: rand(1, 1.5), c1: T.c1, c2: T.c2, smk: i < 2 ? 18 : 0 });
-    // 조종사 탈출 (낙하산)
-    this.add({ type: 'chute', x: p.x, y: p.y - 30, vx: -sd * rand(30, 70), vy: -rand(420, 480), g: 520, life: 0, max: 7, sc: 1.35, pc: p.pc || { c: '#ff5252', d: '#a8182a', l: '#ffb3b3' }, rot: 0 });
-    // 잔해 연기 기둥
-    this.puff(p.x, p.y - 20, 10, { type: 'smoke', v0: 5, v1: 30, vy: -50, jx: 10, d0: 0.3, d1: 1.2, drag: 0.97, l0: 2, l1: 3.4, s0: 6, s1: 10, grow: 14, color: '44,40,40', rise: 20, wind: 1 });
+    this.flash = Math.max(this.flash, 0.22); this.shake = Math.max(this.shake, 7);
+    // 뿅! 몽글몽글 하얀 구름
+    this.puff(p.x, p.y - 18, 14, { type: 'smoke', v0: 30, v1: 95, drag: 0.9, jx: 6, l0: 0.7, l1: 1.2, s0: 6, s1: 10, grow: 14, color: '250,247,255', rise: 8, alpha: 0.9 });
+    this.add({ type: 'ring', x: p.x, y: p.y - 18, life: 0, max: 0.45, size: 10, grow: 110, color: '255,240,170', flat: 0.55, add: 1 });
+    // 튀어 오르는 별
+    this.puff(p.x, p.y - 30, 12, { type: 'star', a0: -Math.PI * 0.95, a1: -Math.PI * 0.05, v0: 70, v1: 170, g: 160, drag: 0.97, l0: 0.8, l1: 1.4, s0: 4, s1: 8, color: '255,226,110' });
+    this.puff(p.x, p.y - 30, 6, { type: 'star', a0: -Math.PI * 0.9, a1: -Math.PI * 0.1, v0: 40, v1: 110, g: 120, drag: 0.97, l0: 0.7, l1: 1.2, s0: 3, s1: 6, color: '255,170,220' });
   }
   land(p, fall) {
     if (fall <= 10) return;

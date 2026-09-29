@@ -200,7 +200,7 @@ function drawPreviews() {
   $$('canvas.tprev').forEach(cv => { if (cv.offsetParent) drawTankPreview(cv, now); });
   $$('canvas.pprev').forEach(cv => { if (cv.offsetParent) drawPilotPreview(cv, now); });
 }
-/** 조종사 초상화 캔버스 (data-tank, data-slot, data-mood, data-pose) */
+/** 캐릭터 얼굴 초상화 캔버스 (data-tank, data-slot, data-mood, data-pose) */
 function drawPilotPreview(cv, now) {
   if (typeof drawPilotPortrait !== 'function') return;
   const f = fitCanvas(cv, 2); if (!f) return;
@@ -209,12 +209,14 @@ function drawPilotPreview(cv, now) {
   const slot = +cv.dataset.slot || 0, mood = cv.dataset.mood || null, pose = cv.dataset.pose || undefined;
   drawPilotPortrait(ctx, { tank: cv.dataset.tank, pc: PCOLORS[slot % 4], x: w / 2, y: h / 2, size: d - 2, t: now + slot * 1.7, seedOff: slot + 0.3, mood, pose, frame: true, facing: cv.dataset.flip ? -1 : 1 });
 }
-/** 조종사 한 줄 소개 HTML */
+/** 캐릭터 나이 표시: 숫자면 'N살', 글자면 그대로, 없으면 생략 */
+function pilotAge(P) { return P.age === undefined || P.age === null || P.age === '' ? '' : (typeof P.age === 'number' ? P.age + '살' : String(P.age)) + ' · '; }
+/** 캐릭터 한 줄 소개 HTML */
 function pilotBrief(tank, slot, cls) {
   const P = typeof PILOTS !== 'undefined' && PILOTS[tank];
   if (!P) return '';
   return `<div class="pilot ${cls || ''}"><canvas class="pprev" data-tank="${tank}" data-slot="${slot}"></canvas>
-    <div class="pi"><b>${esc(P.name)}${P.title ? ' <span>' + esc(P.title) + '</span>' : ''}</b><small>${P.age}세 · ${esc(P.job)}</small><q>${esc(P.motto)}</q></div></div>`;
+    <div class="pi"><b>${esc(P.name)}${P.title ? ' <span>' + esc(P.title) + '</span>' : ''}</b><small>${esc(pilotAge(P))}${esc(P.job)}</small><q>${esc(P.motto)}</q></div></div>`;
 }
 function drawTankPreview(cv, now) {
   const tank = cv.dataset.tank, slot = +cv.dataset.slot || 0, key = cv.dataset.key;
@@ -600,13 +602,13 @@ function buildHelp() {
     (EM ? `<h3 class="em-h">감정 표현</h3><div class="emotes">${EM.slice(0, 6).map((e, i) => `<div class="emo"><span>${esc(e.icon || '💬')}</span><b>${esc(e.text || '')}</b>${i < 4 ? `<kbd>${[7, 8, 9, 0][i]}</kbd>` : ''}</div>`).join('')}</div>` : '');
   paintStatic($('#help'));
 }
-/** 도감: 조종사 프로필 카드 */
+/** 도감: 캐릭터 프로필 카드 */
 function dexPilot(id, slot) {
   const P = typeof PILOTS !== 'undefined' && PILOTS[id];
   if (!P) return '';
   const L = P.lines || {}, pick = k => L[k] && L[k][0] ? `<li><i>${{ turn: '턴 시작', hit: '명중', miss: '빗나감', hurt: '피격', win: '승리' }[k]}</i>“${esc(L[k][0])}”</li>` : '';
   return `<div class="dex-pilot"><canvas class="pprev" data-tank="${id}" data-slot="${slot}" data-mood="happy"></canvas>
-    <div class="dp-info"><div class="dp-name">${esc(P.name)} ${P.title ? '<span>' + esc(P.title) + '</span>' : ''}<small>${P.age}세 · ${esc(P.job)}</small></div>
+    <div class="dp-info"><div class="dp-name">${esc(P.name)} ${P.title ? '<span>' + esc(P.title) + '</span>' : ''}<small>${esc(pilotAge(P))}${esc(P.job)}</small></div>
       <p>${esc(P.desc)}</p><div class="dp-like">좋아하는 것: ${esc(P.like)}</div>
       <ul class="dp-lines">${['turn', 'hit', 'miss', 'win'].map(pick).join('')}</ul></div></div>`;
 }
@@ -758,7 +760,7 @@ function showResult(ev) {
   $('#res-title').textContent = title;
   $('#res-title').style.setProperty('--tc', win.length ? (G.teamMode && win[0].team ? TEAM_COLORS[win[0].team] : win[0].pc.c) : '#cfd8e3');
   $('#res-sub').textContent = `${G.teamMode ? '팀전' : '개인전'} · ${THEMES[G.themeId] ? THEMES[G.themeId].name : ''} 맵 · ${G.players.length}인 대전`;
-  { // 우승 조종사의 한마디
+  { // 우승 캐릭터의 한마디
     let q = $('#res-quote');
     if (!q) { q = document.createElement('div'); q.id = 'res-quote'; $('#res-title').insertAdjacentElement('afterend', q); }
     const w0 = win[0], PL = w0 && typeof PILOTS !== 'undefined' && PILOTS[w0.tank];
@@ -774,15 +776,15 @@ function showResult(ev) {
   const hasStats = G.players.some(p => p.stats);
   const num = (v, suf) => v === undefined || v === null || isNaN(v) ? '<b>-</b>' : `<b data-count="${Math.round(v)}" data-suffix="${suf || ''}">0${suf || ''}</b>`;
   const medal = ['🥇', '🥈', '🥉'];
-  $('#res-list').innerHTML = `<div class="rhead"><span></span><span>플레이어</span><span>입힌 피해</span>${hasStats ? '<span>받은 피해</span><span>명중률</span><span>킬</span><span>최고 한방</span>' : ''}<span>남은 체력</span></div>` +
+  $('#res-list').innerHTML = `<div class="rhead"><span></span><span>플레이어</span><span>입힌 피해</span>${hasStats ? '<span>받은 피해</span><span>명중률</span><span>쓰러뜨림</span><span>최고 한방</span>' : ''}<span>남은 체력</span></div>` +
     ranked.map((p, i) => {
       const st = p.stats || {}, acc = st.shots ? st.hits / st.shots * 100 : undefined;
       return `<div class="rrow ${winners.has(p.id) ? 'win' : ''} ${hasStats ? 'full' : ''}" style="--pc:${p.pc.c};--pl:${p.pc.l};animation-delay:${0.9 + i * 0.12}s">
       <div class="rk">${i < 3 ? medal[i] : i + 1}</div>
       <div class="rn has-av"><canvas class="pprev ravatar" data-tank="${p.tank}" data-slot="${p.slot}" data-mood="${winners.has(p.id) ? 'happy' : 'sad'}"></canvas><div><b>${esc(p.name)}${p === mvp ? '<i class="mvp">MVP</i>' : ''}</b><small>${TANKS[p.tank].name}${p.cpu ? ' · CPU' : ''}${G.teamMode && p.team ? ' · ' + TEAM_NAMES[p.team] : ''}</small></div></div>
       <div class="rs"><span>입힌 피해</span>${num(dealtOf(p))}</div>
-      ${hasStats ? `<div class="rs"><span>받은 피해</span>${num(st.taken)}</div><div class="rs"><span>명중률</span>${acc === undefined ? '<b>-</b>' : num(acc, '%')}</div><div class="rs"><span>킬</span>${num(st.kills || 0)}</div><div class="rs"><span>최고 한방</span>${num(st.maxHit)}</div>` : ''}
-      <div class="rs"><span>남은 체력</span>${p.alive ? `<b class="hpb"><i style="width:${clamp(p.hp / p.maxHp * 100, 0, 100)}%"></i><em>${Math.max(0, Math.round(p.hp))}</em></b>` : `<b class="ko">${p.left ? '탈주' : p.sunk ? '추락' : 'K.O.'}</b>`}</div>
+      ${hasStats ? `<div class="rs"><span>받은 피해</span>${num(st.taken)}</div><div class="rs"><span>명중률</span>${acc === undefined ? '<b>-</b>' : num(acc, '%')}</div><div class="rs"><span>쓰러뜨림</span>${num(st.kills || 0)}</div><div class="rs"><span>최고 한방</span>${num(st.maxHit)}</div>` : ''}
+      <div class="rs"><span>남은 체력</span>${p.alive ? `<b class="hpb"><i style="width:${clamp(p.hp / p.maxHp * 100, 0, 100)}%"></i><em>${Math.max(0, Math.round(p.hp))}</em></b>` : `<b class="ko">${p.left ? '나감' : p.sunk ? '풍덩' : '기절'}</b>`}</div>
     </div>`;
     }).join('');
   Podium.list = ranked.map(p => ({ tank: p.tank, pc: p.pc, name: p.name, win: winners.has(p.id) }));

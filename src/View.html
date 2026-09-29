@@ -223,8 +223,9 @@ function render(dtIn) {
   for (const p of order) {
     if (p.sunk) continue;
     drawTank(ctx, tankOpts(p, { tilt: calcTilt(G.terrain.mask, p), active: p === cur && !G.anim && !!G.turn, ssGlow: p.alive && p.ss >= 100 }));
-    if (!p.alive && Math.random() < 0.15) G.fx.add({ type: 'smoke', x: p.x + rand(-6, 6), y: p.y - 16, vx: rand(-5, 5) + G.wind * 2, vy: -25, drag: 0.99, life: 0, max: 2, size: 3, grow: 7, color: '60,60,60' });
-    else if (p.alive && p.hp / p.maxHp < 0.3 && Math.random() < 0.08) G.fx.add({ type: 'smoke', x: p.x - p.facing * 20, y: p.y - 20, vx: G.wind * 2, vy: -20, drag: 0.99, life: 0, max: 1.5, size: 2, grow: 5, color: '90,90,90' });
+    // 기절한 탱크: 가끔 반짝 별 (그림 자체에 빙글빙글 별이 있음) / 체력 낮음: 연한 '헉헉' 김 — 검은 연기 X
+    if (!p.alive && Math.random() < 0.03) G.fx.add({ type: 'star', x: p.x + rand(-12, 12), y: p.y - 46 - rand(0, 8), vx: rand(-6, 6), vy: -rand(8, 20), life: 0, max: 0.9, size: rand(2.5, 4), color: '255,230,120', rot: rand(0, 6) });
+    else if (p.alive && p.hp / p.maxHp < 0.3 && Math.random() < 0.05) G.fx.add({ type: 'smoke', x: p.x - p.facing * 20, y: p.y - 22, vx: G.wind * 2 - p.facing * 6, vy: -16, drag: 0.99, life: 0, max: 1.1, size: 2, grow: 4, color: '240,240,250', a0: 0.45 });
   }
   if (G.anim) for (const pr of G.anim.world.projs) drawProj(ctx, pr, t);
   drawSea(ctx, t);
@@ -292,15 +293,17 @@ function drawPlates(ctx, t, cur) {
   ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const list = G.players.filter(p => !p.sunk).sort((a, b) => (a === cur) - (b === cur));
   for (const p of list) {
-    const top = w2s(p.x, p.y - 64 * TANK_SCALE / 1.2);
+    // 이름표: HP 숫자 아래끝이 캐릭터 모자 꼭대기(≈ -55 유닛)보다 위에 오도록 (줌·모바일 배율과 무관)
+    const top = w2s(p.x, p.y - 55 * TANK_SCALE);
     if (top.x < -50 || top.x > VW.aw + 50 || top.y > VW.ah - 16) continue;
-    let x = top.x; const y = Math.max(p === cur && VW.aimTop != null ? Math.min(top.y, VW.aimTop) : top.y, 18 * k);
+    const ty = top.y - 11 * k;
+    let x = top.x; const y = Math.max(p === cur && VW.aimTop != null ? Math.min(ty, VW.aimTop) : ty, 18 * k);
     const label = p.name, fontN = `${Math.round(13 * k)}px 'Jua', sans-serif`;
     ctx.font = fontN;
     const tags = [];
     if (G.teamMode && p.team) tags.push({ s: TEAM_NAMES[p.team], bg: TEAM_COLORS[p.team], fg: '#111' });
     if (p.cpu) tags.push({ s: 'CPU', bg: 'rgba(255,255,255,0.18)', fg: '#dfe6ff' });
-    if (p.left) tags.push({ s: '탈주', bg: '#555', fg: '#fff' });
+    if (p.left) tags.push({ s: '나감', bg: '#555', fg: '#fff' });
     const nw = ctx.measureText(label).width;
     ctx.font = `${Math.round(9 * k)}px 'Black Han Sans', sans-serif`;
     const tw = tags.reduce((s, g) => s + ctx.measureText(g.s).width + 8 * k + 3, 0);
@@ -343,7 +346,7 @@ function drawPlates(ctx, t, cur) {
         snowflake(ctx, fx, fy, 5 * k);
       }
     } else {
-      txt(ctx, p.left ? '탈주' : 'K.O.', x, by + bh + 10 * k, `${Math.round(12 * k)}px 'Black Han Sans', sans-serif`, '#ff6b6b', '#000', 3);
+      txt(ctx, p.left ? '나감' : '기절 @_@', x, by + bh + 10 * k, `${Math.round(12 * k)}px 'Black Han Sans', sans-serif`, '#ffd36b', '#000', 3);
     }
     ctx.globalAlpha = 1;
     // 턴 순서 배지
@@ -622,7 +625,7 @@ let hudCache = {};
 const MiniP = {};   // 플레이어별 미니 초상화 캐시 { c, t }
 let miniRR = 0;
 
-/** 미니 초상화 (조종사 상반신) — 비용이 커서 라운드로빈으로 가끔만 갱신 */
+/** 미니 초상화 (캐릭터 얼굴) — 비용이 커서 라운드로빈으로 가끔만 갱신 */
 function miniPortrait(p, force) {
   let m = MiniP[p.id];
   if (!m) m = MiniP[p.id] = { c: mkCanvas(84, 72), t: -99 };
@@ -719,7 +722,7 @@ function updateHud(force) {
   if ((G.frameNo = (G.frameNo || 0) + 1) % 3 === 0 || force) drawPortrait(p);
   set('pbadge', [p.frozenT > 0, p.alive, moodOf(p)].join(), () => {
     const m = moodOf(p), MT = { happy: '😄 신남', sad: '😢 우울', angry: '😠 분노', smug: '😏 여유' };
-    $('#hud-pbadge').textContent = !p.alive ? 'K.O.' : p.frozenT > 0 ? '❄ 빙결' : (m && MT[m]) || '';
+    $('#hud-pbadge').textContent = !p.alive ? '기절' : p.frozenT > 0 ? '❄ 빙결' : (m && MT[m]) || '';
   });
   const ord = turnOrder();
   set('plist', G.players.map(q => q.id + Math.round(q.hp) + q.alive + q.left + (q === p) + Math.floor(q.ss / 100) + (q.frozenT > 0)).join() + '|' + (ord ? ord.map(q => q.id).join() : '') + G.teamMode, renderPlist);
@@ -840,7 +843,7 @@ function renderPlist() {
       <canvas class="pm" data-mini="${q.id}" width="84" height="72"></canvas>
       <div class="l1"><span class="nm">${esc(q.name)}</span>${tags}<span class="ord">${ordT}</span></div>
       <div class="l2">${q.alive ? `<span class="hpb"><i class="${r <= 0.25 ? 'low' : r <= 0.5 ? 'mid' : ''}" style="width:${r * 100}%"></i></span><span class="hpn">${Math.round(q.hp)}</span>${q.ss >= 100 ? '<span class="ssb">SS</span>' : ''}${q.frozenT > 0 ? '<span>❄</span>' : ''}`
-        : `<span class="ko">${q.left ? '탈주' : 'K.O.'}</span>`}</div>
+        : `<span class="ko">${q.left ? '나감' : '기절'}</span>`}</div>
     </div>`;
   }).join('');
   G.players.forEach(q => $$(`#plist canvas[data-mini="${q.id}"]`).forEach(cv => copyMini(cv, q)));
