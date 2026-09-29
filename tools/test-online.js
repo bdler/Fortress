@@ -76,9 +76,17 @@ const INIT = `
           // 가끔은 걸어가다가 턴을 넘긴다 (skip 동기화 검증)
           window.__walking = true; Input.left = true;
           setTimeout(() => { Input.left = false; skipMyTurn(); window.__walking = false; window.__skips = (window.__skips || 0) + 1; }, 700);
-        } else G.ctl.ai = { phase: 'think', t: 0.3 };
+        } else {
+          // 가끔 아이템을 직접 골라서 쏜다 (아이템 동기화 검증)
+          if (Math.random() < 0.45) selectItem(ITEM_IDS[Math.floor(Math.random() * 3)]);
+          G.ctl.ai = { phase: 'think', t: 0.3 };
+        }
       }
+      if (G.screen === 'play' && Math.random() < 0.06) sendEmote(Math.floor(Math.random() * EMOTES.length));
     }, 300);
+    // 다른 사람의 말풍선이 도착했는지 센다
+    const orig = window.applyEmote;
+    window.applyEmote = (pid, i) => { if (!(G.backend && pid === G.backend.pid)) window.__emotesIn = (window.__emotesIn || 0) + 1; return orig(pid, i); };
   };
   for (const p of pages) await p.evaluate(autopilot);
 
@@ -86,6 +94,8 @@ const INIT = `
     screen: G.screen, busy: G.busy || !!G.anim || G.queue.length > 0, turn: G.turn && G.turn.no, log: G.log.length,
     ops: JSON.stringify(G.terrain.ops.map(o => o.map(v => typeof v === 'number' ? Math.round(v) : v))),
     hp: G.players.map(q => q.name + ':' + q.hp + (q.alive ? '' : '✖')).join(' '),
+    items: JSON.stringify(G.players.map(q => [q.items, q.stats])),
+    order: JSON.stringify(G.turnOrder),
     // 지금 턴인 플레이어는 이동 중일 수 있으므로(실시간 위치는 지연 전달) 비교에서 제외
     pos: G.players.filter(q => !G.turn || q.id !== G.turn.pid).map(q => Math.round(q.x) + ',' + Math.round(q.y)).join(' '),
     nops: G.terrain.ops.length
@@ -100,8 +110,8 @@ const INIT = `
     // 모두 같은 로그 위치에서 쉬고 있을 때만 비교
     if (ss.every(s => !s.busy && s.log === ss[0].log && s.turn === ss[0].turn)) {
       checks++;
-      const bad = ss.some(s => s.ops !== ss[0].ops || s.hp !== ss[0].hp || s.pos !== ss[0].pos);
-      if (bad) { mismatches++; console.log('MISMATCH at turn', ss[0].turn); ss.forEach((s, i) => console.log('  P' + i, s.hp, '|', s.pos, '| ops', s.nops)); }
+      const bad = ss.some(s => s.ops !== ss[0].ops || s.hp !== ss[0].hp || s.pos !== ss[0].pos || s.items !== ss[0].items || s.order !== ss[0].order);
+      if (bad) { mismatches++; console.log('MISMATCH at turn', ss[0].turn); ss.forEach((s, i) => console.log('  P' + i, s.hp, '|', s.pos, '| ops', s.nops, '|', s.items, s.order)); }
       if (ss[0].turn !== lastTurn) { lastTurn = ss[0].turn; console.log(`turn ${lastTurn}: ${ss[0].hp}`); }
       if (lastTurn >= 4 && shot === 0) { shot = 1; await pages[1].screenshot({ path: OUT + '/on-2-game.png' }); }
     }
@@ -110,9 +120,13 @@ const INIT = `
   await pages[2].screenshot({ path: OUT + '/on-3-late.png' });
   const room = JSON.parse(server.store.get('R_' + code));
   console.log('skips:', (await Promise.all(pages.map(p => p.evaluate(() => window.__skips || 0)))).join(','));
+  const emo = await Promise.all(pages.map(p => p.evaluate(() => window.__emotesIn || 0)));
+  console.log('emotes received:', emo.join(','));
+  const used = await pages[0].evaluate(() => G.players.map(q => q.name + ':' + JSON.stringify(q.items) + ' shots ' + q.stats.shots + ' hits ' + q.stats.hits + ' dmg ' + q.stats.dealt).join(' | '));
+  console.log('items/stats:', used);
   console.log('server room status:', room.status, 'events:', room.evCount, 'turn:', room.turn && room.turn.no);
   console.log(`consistency checks: ${checks}, mismatches: ${mismatches}`);
   console.log(errors.length ? 'ERRORS:\n' + errors.join('\n') : 'NO PAGE ERRORS');
   await browser.close();
-  process.exit(mismatches || errors.length || checks < 3 ? 1 : 0);
+  process.exit(mismatches || errors.length || checks < 3 || emo.some(n => n === 0) ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

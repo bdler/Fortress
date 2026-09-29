@@ -7,7 +7,7 @@ const OUT = process.env.SHOTS || '/tmp';
   const page = await browser.newPage({ viewport: { width: 1400, height: 860 } });
   const errors = [];
   page.on('pageerror', e => errors.push('pageerror: ' + e.message + '\n' + e.stack));
-  page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+  page.on('console', m => { if (m.type() === 'error' && !/ERR_CERT|fonts\.g/.test(m.text())) errors.push('console: ' + m.text()); });
   page.on('dialog', d => d.accept());
   await page.goto('file://' + path.resolve(__dirname, '../dist/fortress.html'));
   await page.waitForTimeout(2500);
@@ -24,6 +24,10 @@ const OUT = process.env.SHOTS || '/tmp';
     if (mine) {
       await page.keyboard.down('ArrowRight'); await page.waitForTimeout(300); await page.keyboard.up('ArrowRight');
       await page.keyboard.down('ArrowUp'); await page.waitForTimeout(250); await page.keyboard.up('ArrowUp');
+      // 아이템(4/5/6) · 감정표현(7/8/9/0) 키
+      await page.keyboard.press(String(4 + (i % 3))); await page.keyboard.press(String((7 + i) % 10));
+      const sel = await page.evaluate(() => ({ item: G.ctl && G.ctl.item, emote: G.players.find(p => !p.cpu).emote }));
+      console.log('item/emote', JSON.stringify(sel));
       await page.keyboard.down('Space'); await page.waitForTimeout(1100);
       await page.screenshot({ path: OUT + '/4-charging.png' });
       await page.keyboard.up('Space');
@@ -36,7 +40,8 @@ const OUT = process.env.SHOTS || '/tmp';
     if (st.screen === 'result') break;
   }
   await page.screenshot({ path: OUT + '/7-late.png' });
-  const st = await page.evaluate(() => ({ screen: G.screen, turn: G.turn && G.turn.no, hp: G.players.map(p => p.name + ':' + p.hp + (p.alive ? '' : 'X')), ops: G.terrain && G.terrain.ops.length }));
+  const st = await page.evaluate(() => ({ screen: G.screen, turn: G.turn && G.turn.no, hp: G.players.map(p => p.name + ':' + p.hp + (p.alive ? '' : 'X')), ops: G.terrain && G.terrain.ops.length,
+    items: G.players.map(p => JSON.stringify(p.items)), stats: G.players.map(p => JSON.stringify(p.stats)), order: G.turnOrder }));
   console.log(JSON.stringify(st));
   console.log(errors.length ? errors.join('\n') : 'NO ERRORS');
   await browser.close();

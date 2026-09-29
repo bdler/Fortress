@@ -13,6 +13,7 @@
  *   E_<code>_<n>      n번째 이벤트
  *   L_<code>          현재 턴 플레이어의 실시간 위치/각도
  *   S_<code>_<pid>    플레이어 마지막 접속 시각
+ *   M_<code>_<pid>    마지막 감정표현 시각 (도배 방지)
  */
 
 var CACHE_TTL = 21600;      // 6시간(캐시 최대치)
@@ -24,6 +25,10 @@ var SKIP_DELAY = 500;       // 턴을 넘겼을 때 추가 딜레이
 var MAX_PLAYERS = 4;
 var TANK_IDS = ['cannon', 'missile', 'laser', 'multi', 'ice', 'air'];
 var THEMES = ['grass', 'desert', 'snow', 'night', 'volcano'];
+var ITEM_IDS = ['dual', 'power', 'heal'];  // 매치 시작 시 종류별 1개
+var EMOTE_COUNT = 6;
+var EMOTE_GAP_MS = 1500;
+var MAX_SHOT_DELAY = 1700;  // 무기 딜레이 + 이동 + 아이템
 
 function doGet() {
   return HtmlService.createTemplateFromFile('Index')
@@ -258,6 +263,7 @@ function startGame(code, pid, token) {
       p.alive = true;
       p.delay = Math.floor(Math.random() * 60);
       p.lastTurn = -1;
+      p.items = { dual: 1, power: 1, heal: 1 };
     });
     pushEvent_(room, {
       type: 'start', seed: seed, theme: theme, teamMode: room.teamMode,
@@ -284,7 +290,8 @@ function nextTurn_(room) {
   var no = (room.turn ? room.turn.no : 0) + 1;
   room.turn = { pid: p.id, no: no, startedAt: Date.now(), wind: wind };
   cache_().remove('L_' + room.code);
-  pushEvent_(room, { type: 'turn', pid: p.id, no: no, wind: wind });
+  // order: 지금 턴(맨 앞) 이후 예상 순서 (딜레이 순)
+  pushEvent_(room, { type: 'turn', pid: p.id, no: no, wind: wind, order: alive.map(function (q) { return q.id; }) });
 }
 
 /** 팀전에서 팀(1=A, 2=B)을 고른 사람은 팀으로, 0(개인)은 혼자 한 편 */
@@ -327,6 +334,13 @@ function submit(code, pid, token, action) {
     if (actor.id !== pid && !(actor.cpu && room.hostId === pid)) return { ok: false, reason: 'forbidden' };
 
     if (action.type === 'shot') {
+      var item = action.params && action.params.item;
+      if (item !== undefined && item !== null) {
+        if (ITEM_IDS.indexOf(item) < 0) return { ok: false, reason: 'bad-item' };
+        if (!actor.items) actor.items = { dual: 1, power: 1, heal: 1 };
+        if (!(actor.items[item] > 0)) return { ok: false, reason: 'no-item' };
+        actor.items[item]--;
+      }
       pushEvent_(room, { type: 'shot', pid: actor.id, no: action.no, params: action.params, result: action.result });
       var res = action.result || {};
       (res.players || []).forEach(function (rp) {
@@ -336,7 +350,7 @@ function submit(code, pid, token, action) {
         if (!p.left) p.alive = !!rp.alive;
         p.delay += Math.max(0, Math.min(400, rp.freeze || 0));
       });
-      actor.delay += Math.max(300, Math.min(1400, Number(action.params && action.params.delayAdd) || 700));
+      actor.delay += Math.max(300, Math.min(MAX_SHOT_DELAY, Number(action.params && action.params.delayAdd) || 700));
     } else {
       pushEvent_(room, { type: 'skip', pid: actor.id, no: action.no, pos: cleanPos_(action.pos) });
       actor.delay += SKIP_DELAY;
@@ -365,6 +379,31 @@ function sendLive(code, pid, token, data) {
   data.no = room.turn.no;
   cache_().put('L_' + code, JSON.stringify(data), 600);
   return true;
+}
+
+/**
+ * 감정표현(말풍선). asId 가 CPU 면 방장만 대신 보낼 수 있다.
+ * 이벤트 로그로 전달되지만 게임 상태에는 영향 없음 (클라이언트는 즉시 표시만)
+ */
+function emote(code, pid, token, i, asId) {
+  return withLock_(function () {
+    var room = getRoom_(code);
+    auth_(room, pid, token);
+    touch_(code, pid);
+    if (room.status !== 'playing') return false;
+    var who = findPlayer_(room, asId || pid);
+    if (!who || who.left) return false;
+    if (who.id !== pid && !(who.cpu && room.hostId === pid)) return false;
+    i = Math.floor(Number(i));
+    if (!(i >= 0 && i < EMOTE_COUNT)) return false;
+    var key = 'M_' + code + '_' + who.id, now = Date.now();
+    var last = Number(cache_().get(key) || 0);
+    if (now - last < EMOTE_GAP_MS) return false;
+    cache_().put(key, String(now), 600);
+    pushEvent_(room, { type: 'emote', pid: who.id, i: i, from: pid });
+    putRoom_(room);
+    return true;
+  });
 }
 
 function touch_(code, pid) {
