@@ -7,6 +7,8 @@
  *  - 턴 순서(딜레이), 바람, 승패 판정 등 "규칙"의 최종 권한
  *  - 포격 결과(지형 파괴, 데미지)는 쏜 사람의 클라이언트가 계산해서 보내고,
  *    서버는 이벤트 로그로 모든 참가자에게 중계한다.
+ *  - 비기너 방(room.beginner, 방장이 로비에서 hostUpdate({beginner:true/false})): 바람 ±2, 턴 40초,
+ *    회복 아이템 2개. 클라이언트 규칙(RULES)은 'start' 이벤트의 beginner 필드로 모두에게 똑같이 전파된다.
  *
  * 저장소: CacheService(스크립트 캐시, 최대 6시간 유지)
  *   R_<code>          방 정보(JSON)
@@ -18,6 +20,11 @@
 
 var CACHE_TTL = 21600;      // 6시간(캐시 최대치)
 var TURN_MS = 25000;        // 한 턴 제한 시간
+var TURN_MS_BEGINNER = 40000; // 비기너 방의 턴 제한 시간 (클라이언트 RULES_BEGINNER.turnTime 과 같아야 함)
+var WIND_MAX = 10;          // 바람 최대치 (±)
+var WIND_MAX_BEGINNER = 2;  // 비기너 방의 바람 최대치
+var HEAL_START = 1;         // 매치 시작 회복 아이템 개수
+var HEAL_START_BEGINNER = 2;
 var TURN_GRACE_MS = 22000;  // 포격 애니메이션 + 통신 지연 여유
 var AWAY_MS = 15000;        // 이 시간 이상 응답 없으면 자리 비움으로 보고 턴 넘김
 var LEAVE_MS = 90000;       // 이 시간 이상 응답 없으면 탈주 처리
@@ -113,7 +120,7 @@ function freeSlot_(room) {
 function publicRoom_(room) {
   return {
     code: room.code, hostId: room.hostId, status: room.status, theme: room.theme,
-    teamMode: room.teamMode, evCount: room.evCount, turn: room.turn, winners: room.winners || null,
+    teamMode: room.teamMode, beginner: !!room.beginner, evCount: room.evCount, turn: room.turn, winners: room.winners || null,
     players: room.players.map(function (p) {
       return { id: p.id, name: p.name, tank: p.tank, team: p.team, slot: p.slot, cpu: !!p.cpu,
                alive: p.alive, hp: p.hp, left: !!p.left };
@@ -126,7 +133,7 @@ function publicRoom_(room) {
 function createRoom(name) {
   return withLock_(function () {
     var room = {
-      code: newCode_(), hostId: null, status: 'lobby', theme: 'random', teamMode: false,
+      code: newCode_(), hostId: null, status: 'lobby', theme: 'random', teamMode: false, beginner: false,
       players: [], evCount: 0, turn: null, createdAt: Date.now()
     };
     var p = { id: uid_(8), token: uid_(16), name: cleanName_(name), tank: 'cannon', team: 0, slot: 0, cpu: false };
@@ -184,6 +191,7 @@ function hostUpdate(code, pid, token, data) {
     data = data || {};
     if (data.theme && (data.theme === 'random' || THEMES.indexOf(data.theme) >= 0)) room.theme = data.theme;
     if (typeof data.teamMode === 'boolean') room.teamMode = data.teamMode;
+    if (typeof data.beginner === 'boolean') room.beginner = data.beginner;   // 비기너 모드 (엄격히 boolean 만)
     if (data.addCpu) {
       var slot = freeSlot_(room);
       if (slot >= 0) {
@@ -263,10 +271,10 @@ function startGame(code, pid, token) {
       p.alive = true;
       p.delay = Math.floor(Math.random() * 60);
       p.lastTurn = -1;
-      p.items = { dual: 1, power: 1, heal: 1 };
+      p.items = startItems_(room);
     });
     pushEvent_(room, {
-      type: 'start', seed: seed, theme: theme, teamMode: room.teamMode,
+      type: 'start', seed: seed, theme: theme, teamMode: room.teamMode, beginner: !!room.beginner,
       players: room.players.map(function (p) {
         return { id: p.id, name: p.name, tank: p.tank, team: room.teamMode ? p.team : 0, slot: p.slot, cpu: !!p.cpu };
       })
@@ -278,6 +286,15 @@ function startGame(code, pid, token) {
   });
 }
 
+/** 매치 시작 아이템 (비기너는 회복 2개) */
+function startItems_(room) {
+  return { dual: 1, power: 1, heal: room.beginner ? HEAL_START_BEGINNER : HEAL_START };
+}
+
+/** 방 규칙에 따른 턴 제한 시간(ms) / 바람 최대치 */
+function turnMs_(room) { return room.beginner ? TURN_MS_BEGINNER : TURN_MS; }
+function windMax_(room) { return room.beginner ? WIND_MAX_BEGINNER : WIND_MAX; }
+
 /** 딜레이가 가장 적은 생존자가 다음 턴 (포트리스식 딜레이 턴제) */
 function nextTurn_(room) {
   var alive = room.players.filter(function (p) { return p.alive && !p.left; });
@@ -286,7 +303,7 @@ function nextTurn_(room) {
     return (a.delay - b.delay) || (a.lastTurn - b.lastTurn) || (a.slot - b.slot);
   });
   var p = alive[0];
-  var wind = Math.round((Math.random() * 2 - 1) * 10);
+  var wind = Math.round((Math.random() * 2 - 1) * windMax_(room));
   var no = (room.turn ? room.turn.no : 0) + 1;
   room.turn = { pid: p.id, no: no, startedAt: Date.now(), wind: wind };
   cache_().remove('L_' + room.code);
@@ -337,7 +354,7 @@ function submit(code, pid, token, action) {
       var item = action.params && action.params.item;
       if (item !== undefined && item !== null) {
         if (ITEM_IDS.indexOf(item) < 0) return { ok: false, reason: 'bad-item' };
-        if (!actor.items) actor.items = { dual: 1, power: 1, heal: 1 };
+        if (!actor.items) actor.items = startItems_(room);
         if (!(actor.items[item] > 0)) return { ok: false, reason: 'no-item' };
         actor.items[item]--;
       }
@@ -432,7 +449,7 @@ function poll(code, pid, token, since) {
       var tp = findPlayer_(room, room.turn.pid);
       var who = tp && tp.cpu ? room.hostId : room.turn.pid;
       var elapsed = now - room.turn.startedAt;
-      if (elapsed > TURN_MS + TURN_GRACE_MS) needFix = true;
+      if (elapsed > turnMs_(room) + TURN_GRACE_MS) needFix = true;
       if (who !== pid && elapsed > 5000 && now - (seen[who] || 0) > AWAY_MS) needFix = true;
     }
     if (needFix) room = fixStalled_(code, pid) || room;
@@ -484,7 +501,7 @@ function fixStalled_(code, pid) {
       var who = tp && tp.cpu ? room.hostId : room.turn.pid;
       var elapsed = now - room.turn.startedAt;
       var away = who !== pid && elapsed > 5000 && now - (seen[who] || 0) > AWAY_MS;
-      if (tp && (elapsed > TURN_MS + TURN_GRACE_MS || away)) {
+      if (tp && (elapsed > turnMs_(room) + TURN_GRACE_MS || away)) {
         // 마지막으로 공유된 위치를 최종 위치로 확정 (모두 같은 위치로 맞추기 위해)
         var liveRaw = cache_().get('L_' + code), live = liveRaw ? JSON.parse(liveRaw) : null;
         var pos = live && live.no === room.turn.no && live.actor === tp.id ? cleanPos_(live) : null;

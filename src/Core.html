@@ -8,9 +8,8 @@ const SEA = H - 26;               // 이 아래로 떨어지면 추락(사망)
 const GRAV = 420;                 // 중력 px/s^2
 const VMAX = 880;                 // 파워 100일 때 초기 속도
 const WIND_ACC = 14;              // 바람 1칸당 가속도
-const TURN_TIME = 25;             // 턴 제한 시간(초)
 const SIM_DT = 1 / 120;           // 물리 스텝
-const TANK_HIT_R = 21;            // 탱크 피격 반경
+const TANK_HIT_R = 21;            // 탱크 피격 반경 (일반 모드 기준값 — 실제 판정은 RULES.hitR)
 const TANK_SCALE = 1.2;           // 탱크 그림/포구 크기 배율
 const SKIP_DELAY = 500;
 
@@ -22,6 +21,38 @@ const PCOLORS = [
 ];
 const TEAM_NAMES = ['개인', 'A팀', 'B팀'];
 const TEAM_COLORS = ['#cfd8e3', '#ff7a59', '#4fc3ff'];
+
+/* ---------------------------------------------------------
+ *  매치 규칙 (일반 / 비기너)
+ *   매치 시작 이벤트('start')의 beginner 필드로 setRules(beginner) 를 호출해 정한다.
+ *   시뮬레이션에 영향을 주는 값(hitR·blastMul·dmgMul·fallDmg·noSelfHit·ssMul·healMul)은
+ *   모든 클라이언트가 같은 start 이벤트에서 똑같이 얻으므로 온라인 결정성이 유지된다.
+ *   RULES 는 객체 참조를 유지한 채 값만 바뀐다 (Object.assign).
+ *    hitR       탱크 피격 반경          blastMul  폭발/구덩이/피해 반경 배율
+ *    dmgMul     무기 데미지 배율        fallDmg   낙하 데미지 여부
+ *    noSelfHit  내 포탄에 나는 안 맞음  ssMul     SS 게이지 충전 배율
+ *    turnTime   턴 제한 시간(초)        chargeSpeed 파워 충전 속도(파워/초)
+ *    windMax    바람 최대치(서버/로컬 백엔드가 생성)
+ *    aiErr      CPU 조준 오차 배율      healMul   회복 아이템 개수 배율
+ * --------------------------------------------------------- */
+const RULES_NORMAL = Object.freeze({
+  beginner: false, hitR: 21, blastMul: 1, dmgMul: 1, fallDmg: true, noSelfHit: false, ssMul: 1,
+  turnTime: 25, chargeSpeed: 52, windMax: 10, aiErr: 1, healMul: 1
+});
+const RULES_BEGINNER = Object.freeze({
+  beginner: true, hitR: 26, blastMul: 1.3, dmgMul: 1, fallDmg: false, noSelfHit: true, ssMul: 1.5,
+  turnTime: 40, chargeSpeed: 30, windMax: 2, aiErr: 4, healMul: 2
+});
+const RULES = Object.assign({}, RULES_NORMAL);
+function setRules(beginner) { return Object.assign(RULES, beginner === true ? RULES_BEGINNER : RULES_NORMAL); }
+/** 예전 코드/HUD 호환: TURN_TIME 을 읽을 때마다 현재 규칙의 턴 시간을 돌려준다 */
+Object.defineProperty(globalThis, 'TURN_TIME', { get() { return RULES.turnTime; }, configurable: true });
+/** 매치 시작 아이템 개수 (회복은 규칙 배율 적용) */
+function startItems() {
+  const o = Object.assign({}, ITEM_START);
+  o.heal = Math.max(0, Math.round(o.heal * RULES.healMul));
+  return o;
+}
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;

@@ -25,6 +25,8 @@ function createServer() {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'src', 'Code.gs'), 'utf8'), ctx);
   return {
     store, ctx,
+    // 가짜 시계 (턴 시간 초과 같은 시간 의존 규칙 테스트용). setClock(() => ms) / setClock(null) 로 복원
+    setClock(fn) { ctx.Date = fn ? Object.assign(function () { }, { now: fn }) : Date; },
     // google.script.run 처럼 인자/결과를 JSON 직렬화해서 호출
     call(fn, args) {
       if (typeof ctx[fn] !== 'function' || fn.endsWith('_')) throw new Error('no such server function: ' + fn);

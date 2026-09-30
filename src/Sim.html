@@ -241,11 +241,11 @@ function runPending(world, e) {
     addProj(world, Object.assign({}, e.proj));
     if (e.muzzleFx && world.fx) world.fx.fire(findP(world, e.proj.owner), e.proj.w, e.proj);
   } else if (e.kind === 'orbital') {
-    const m = world.terrain.mask, w = e.w, x = e.x;
+    const m = world.terrain.mask, w = e.w, x = e.x, sr = w.sr * RULES.blastMul;
     const top = Math.min(surfaceY(m, x), SEA);
-    for (let y = top - 10; y < Math.min(top + 190, SEA + 20); y += 16) world.terrain.crater(x, y, w.sr);
+    for (let y = top - 10; y < Math.min(top + 190, SEA + 20); y += 16) world.terrain.crater(x, y, sr);
     for (const p of world.players) {
-      if (p.alive && Math.abs(p.x - x) < w.sr + 14) applyDamage(world, p, w.sdmg, e.owner, w, false);
+      if (p.alive && Math.abs(p.x - x) < sr + 14) applyDamage(world, p, w.sdmg, e.owner, w, false);
     }
     if (world.fx) world.fx.beam(x, top);
   }
@@ -317,9 +317,10 @@ function stepProj(world, pr, dt) {
   if (world.fx) world.fx.trail(pr);
   if (pr.x < -400 || pr.x > W + 400) { pr.dead = true; return; }
   if (pr.y > SEA) { pr.dead = true; world.lastEventT = world.t; if (world.fx) world.fx.splash(pr.x); return; }
+  const hitR = RULES.hitR;
   for (const p of world.players) {
-    if (!p.alive || (p.id === pr.owner && pr.age < 0.35)) continue;
-    if (Math.hypot(pr.x - p.x, pr.y - (p.y - 14)) < TANK_HIT_R) { explode(world, pr, pr.x, pr.y, p); return; }
+    if (!p.alive || (p.id === pr.owner && (pr.age < 0.35 || RULES.noSelfHit))) continue;
+    if (Math.hypot(pr.x - p.x, pr.y - (p.y - 14)) < hitR) { explode(world, pr, pr.x, pr.y, p); return; }
   }
   if (isSolid(m, pr.x, pr.y)) {
     if (pr.drill > 0) {
@@ -360,17 +361,18 @@ function explode(world, pr, x, y, direct) {
   const w = pr.w;
   pr.dead = true;
   world.lastEventT = world.t;
+  const br = w.r * RULES.blastMul;   // 폭발 반경 (비기너 = 더 크게)
   if (w.mound) world.terrain.mound(x, y, w.mound);
-  else world.terrain.crater(x, y, w.r);
-  if (world.fx) world.fx.explode(x, y, w.mound ? w.mound * 0.7 : w.r, w.fx || 'fire', !!w.mound);
-  damageArea(world, x, y, w.r, w.dmg, pr.owner, direct, w);
+  else world.terrain.crater(x, y, br);
+  if (world.fx) world.fx.explode(x, y, w.mound ? w.mound * 0.7 : br, w.fx || 'fire', !!w.mound);
+  damageArea(world, x, y, br, w.dmg, pr.owner, direct, w);
   if (w.strike) scheduleStrike(world, x, y, w, pr.owner);
 }
 
 function damageArea(world, x, y, r, dmg, owner, direct, w) {
   for (const p of world.players) {
     if (!p.alive) continue;
-    const reach = r + TANK_HIT_R, d = Math.hypot(p.x - x, p.y - 14 - y);
+    const reach = r + RULES.hitR, d = Math.hypot(p.x - x, p.y - 14 - y);
     let amt = 0;
     if (p === direct) amt = dmg * 1.2;
     else if (d < reach) amt = dmg * (0.3 + 0.7 * (1 - d / reach));
@@ -380,11 +382,13 @@ function damageArea(world, x, y, r, dmg, owner, direct, w) {
 
 function applyDamage(world, p, amt, owner, w, direct) {
   if (!p.alive || amt <= 0) return;
+  if (RULES.noSelfHit && owner != null && p.id === owner) return;   // 비기너: 내 포탄에 나는 안 맞음
+  if (w && RULES.dmgMul !== 1) amt = Math.max(1, Math.round(amt * RULES.dmgMul));
   amt = Math.min(amt, p.hp);
   p.hp -= amt; p.taken = (p.taken || 0) + amt;
   const o = findP(world, owner);
-  if (o && o !== p) { o.ss = Math.min(100, o.ss + amt * 0.12); o.dealt += amt; }
-  p.ss = Math.min(100, p.ss + amt * 0.06);
+  if (o && o !== p) { o.ss = Math.min(100, o.ss + amt * 0.12 * RULES.ssMul); o.dealt += amt; }
+  p.ss = Math.min(100, p.ss + amt * 0.06 * RULES.ssMul);
   if (w && w.freeze) p.freeze += w.freeze;
   if (world.fx) world.fx.damage(p, amt, w, { direct: !!direct, owner: owner == null ? null : owner });
   if (p.hp <= 0) killPlayer(world, p, false);
@@ -408,7 +412,7 @@ function settlePlayer(world, p, dt) {
       p.falling = false;
       const fall = p.y - p.fallFrom;
       if (world.fx) world.fx.land(p, fall);
-      if (fall > 50 && p.alive) applyDamage(world, p, Math.min(160, Math.round((fall - 50) * 0.7)), null, null, false);
+      if (fall > 50 && p.alive && RULES.fallDmg) applyDamage(world, p, Math.min(160, Math.round((fall - 50) * 0.7)), null, null, false);
       world.lastEventT = world.t;
     }
     p.vy = 0;

@@ -7,7 +7,7 @@
 const G = {
   canvas: null, ctx: null, dpr: 1, scale: 1, ox: 0, oy: 0,
   screen: 'title', attract: false, silent: false,
-  seed: 0, themeId: 'grass', theme: THEMES.grass, teamMode: false,
+  seed: 0, themeId: 'grass', theme: THEMES.grass, teamMode: false, beginner: false,
   players: [], terrain: null, painter: null, bg: null, heights: null,
   clouds: [], ambient: [], fx: null,
   queue: [], log: [], busy: false, anim: null, turn: null, ctl: null, backend: null,
@@ -56,8 +56,9 @@ class LocalBackend {
     this.local = true;
     this.players = config.players.map(p => Object.assign({}, p, { alive: true, delay: Math.floor(Math.random() * 60), lastTurn: -1 }));
     this.teamMode = config.teamMode; this.turnNo = 0; this.ended = false;
+    this.beginner = config.beginner === true;   // 비기너 모드 (바람 ±2, 규칙은 start 이벤트로 전파)
     const theme = config.theme === 'random' ? THEME_IDS[Math.floor(Math.random() * THEME_IDS.length)] : config.theme;
-    G.queue.push({ type: 'start', seed: Math.floor(Math.random() * 2147483647), theme, teamMode: config.teamMode,
+    G.queue.push({ type: 'start', seed: Math.floor(Math.random() * 2147483647), theme, teamMode: config.teamMode, beginner: this.beginner,
       players: this.players.map(p => ({ id: p.id, name: p.name, tank: p.tank, team: config.teamMode ? p.team : 0, slot: p.slot, cpu: p.cpu })) });
     this.nextTurn();
   }
@@ -67,7 +68,8 @@ class LocalBackend {
     const alive = this.players.filter(p => p.alive);
     alive.sort((a, b) => (a.delay - b.delay) || (a.lastTurn - b.lastTurn) || (a.slot - b.slot));
     this.turnNo++;
-    G.queue.push({ type: 'turn', pid: alive[0].id, no: this.turnNo, wind: Math.round((Math.random() * 2 - 1) * 10), order: alive.map(p => p.id) });
+    const windMax = (this.beginner ? RULES_BEGINNER : RULES_NORMAL).windMax;
+    G.queue.push({ type: 'turn', pid: alive[0].id, no: this.turnNo, wind: Math.round((Math.random() * 2 - 1) * windMax), order: alive.map(p => p.id) });
   }
   checkEnd() {
     const sides = new Set(this.players.filter(p => p.alive).map(p => this.side(p)));
@@ -165,6 +167,9 @@ class OnlineBackend {
 
 /* ---------------- 매치 초기화 ---------------- */
 function initMatch(ev) {
+  // 규칙은 지형/탱크를 만들기 전에 (모든 클라이언트가 start 이벤트에서 똑같이 얻는다 — 재동기화 때도 동일)
+  G.beginner = ev.beginner === true;
+  setRules(G.beginner);
   G.seed = ev.seed; G.themeId = ev.theme; G.theme = THEMES[ev.theme]; G.teamMode = ev.teamMode;
   const gen = genTerrain(ev.seed);
   G.heights = gen.heights;
@@ -183,7 +188,7 @@ function initMatch(ev) {
       ss: 0, freeze: 0, falling: false, fallFrom: y, dealt: 0, totalDealt: 0, tread: 0, recoil: 0, hurtT: 0, frozenT: 0,
       seedOff: i * 1.37, lastPower: null, left: false,
       mood: null, moodT: 0, movingT: 0, emote: null, emoteAt: -99,
-      items: Object.assign({}, ITEM_START), stats: newStats()
+      items: startItems(), stats: newStats()
     };
   });
   G.anim = null; G.turn = null; G.ctl = null; G.busy = false; G.playedTurns = new Set(); G.endInfo = null; G.live = null;
@@ -303,8 +308,9 @@ function handleEvent(ev) {
     case 'start':
       G.log = [ev];
       initMatch(ev);
+      assistCall('reset');
       if (!G.attract) showScreen('play');
-      banner(THEMES[ev.theme].name + ' 맵', G.teamMode ? '팀전 시작!' : '개인전 시작!');
+      banner(THEMES[ev.theme].name + ' 맵', (G.teamMode ? '팀전 시작!' : '개인전 시작!') + (G.beginner ? ' · 🐣 비기너 모드' : ''));
       G.busy = true;
       { const tok = G.startEv; setTimeout(() => { if (G.startEv === tok) G.busy = false; }, G.attract ? 300 : 1400); }
       break;
@@ -345,7 +351,7 @@ function handleEvent(ev) {
 function beginTurn(ev) {
   G.wind = ev.wind;
   const p = findPlayer(ev.pid);
-  G.turn = { pid: ev.pid, no: ev.no, wind: ev.wind, timeLeft: TURN_TIME };
+  G.turn = { pid: ev.pid, no: ev.no, wind: ev.wind, timeLeft: RULES.turnTime };
   G.turnOrder = (Array.isArray(ev.order) && ev.order.length ? ev.order : [ev.pid]).filter(id => { const q = findPlayer(id); return q && q.alive; });
   G.ctl = null;
   if (!G.attract && Sound.setWind) Sound.setWind(ev.wind);
@@ -356,12 +362,21 @@ function beginTurn(ev) {
               ai: p.cpu ? { phase: 'think', t: rand(0.5, 1.1) } : null, lastTick: 99, item: null, warned: false };
   }
   const mine = G.ctl && !p.cpu;
+  if (mine) assistCall('onTurn', p, G.ctl);
   pilotSay(p, 'turn', ev.no * 13 + 1, 0.45);
   if (!G.attract) {
     Sound.play(mine ? 'myturn' : 'turn');
     banner(mine ? (G.backend.local && humanCount() > 1 ? `${p.name}의 차례!` : '내 차례!') : `${p.name}의 차례`, `바람 ${windText(ev.wind)}`, p.pc.c);
   }
   updateHud(true);
+}
+
+/** 조준 도우미 훅 (Assist.html). 없거나 예외가 나도 게임 루프는 멈추지 않는다. */
+let assistBroken = false;
+function assistCall(name, ...args) {
+  if (assistBroken || typeof Assist === 'undefined' || !Assist || typeof Assist[name] !== 'function') return;
+  try { Assist[name](...args); }
+  catch (e) { assistBroken = true; console.error('Assist.' + name + ' 오류 — 조준 도우미를 끕니다', e); try { Assist.level = 0; } catch (_) { /* 무시 */ } }
 }
 
 function humanCount() { return G.players.filter(p => !p.cpu).length; }
@@ -544,7 +559,7 @@ function humanUpdate(c, p, dt) {
   if (Input.fire && !c.charging && !c.fireHeld) { c.charging = true; c.power = 0; }
   if (!Input.fire) c.fireHeld = false;
   if (c.charging) {
-    c.power += dt * 52;
+    c.power += dt * RULES.chargeSpeed;
     if (Math.floor(c.power / 4) !== c.lastChg) { c.lastChg = Math.floor(c.power / 4); Sound.charge(c.power); }
     if (!Input.fire || c.power >= 100) { c.power = Math.min(100, c.power); doFire(); }
   }
@@ -591,7 +606,7 @@ function aiTraj(p, facing, angle, power, w) {
     vx += G.wind * WIND_ACC * wm * dt; vy += GRAV * gm * dt; x += vx * dt; y += vy * dt;
     if (x < -300 || x > W + 300) return { x, y, miss: true };
     if (y > SEA) return { x, y: SEA, miss: true };
-    if (t > 0.35) for (const o of G.players) if (o.alive && Math.hypot(x - o.x, y - o.y + 14) < TANK_HIT_R) return { x, y };
+    if (t > 0.35) for (const o of G.players) if (o.alive && Math.hypot(x - o.x, y - o.y + 14) < RULES.hitR) return { x, y };
     if (isSolid(m, x, y)) return { x, y };
   }
   return { x, y, miss: true };
@@ -626,7 +641,7 @@ function aiPlanAim(p, wIdx) {
     const sc = scoreOf(aiTraj(p, b0.facing, a, pw, w));
     if (sc < best.score) best = { score: sc, angle: a, power: pw, facing: b0.facing };
   }
-  const err = G.attract ? 3 : 2.2;
+  const err = (G.attract ? 3 : 2.2) * RULES.aiErr;   // 비기너: CPU 는 봐주기 (오차 큼)
   best.angle = clamp(Math.round(best.angle + rand(-err, err) * 0.6), 0, 90);
   best.power = clamp(best.power + rand(-err, err), 5, 100);
   return best;
@@ -675,7 +690,7 @@ function aiUpdate(c, p, dt) {
   } else if (ai.phase === 'charge') {
     if (ai.t > 0) { ai.t -= dt; return; }
     c.charging = true;
-    c.power = Math.min(ai.plan.power, c.power + dt * 52);
+    c.power = Math.min(ai.plan.power, c.power + dt * RULES.chargeSpeed);
     if (c.power >= ai.plan.power) doFire();
   }
 }
@@ -723,6 +738,7 @@ function loop(ts) {
   if (G.players.length) {
     if (G.anim) updateAnim(dt);
     updateControl(dt);
+    assistCall('tick', dt);
     updateRemote(dt);
     for (const p of G.players) {
       p.recoil = Math.max(0, p.recoil - dt * 4); p.hurtT = Math.max(0, p.hurtT - dt); p.frozenT = Math.max(0, p.frozenT - dt * 0.5);
