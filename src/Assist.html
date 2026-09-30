@@ -1,10 +1,814 @@
 <script>
 /* =========================================================
- *  Assist: 조준 도우미 (스텁 — 실제 구현은 조준 도우미 담당이 이 파일을 통째로 교체)
+ *  Assist: 조준 도우미 (비기너 모드의 "각도·힘 알려주기")
+ *
+ *   1) AssistSolver  — 순수 계산기 (DOM/G 접근 없음, Node 에서도 로드됨: tools/test-assist.js)
+ *        Sim.html 과 똑같은 방식(SIM_DT, 스텝 순서, muzzle, 지형 마스크, 바람/중력/속도 배율,
+ *        호밍·정점 분열·드릴·바운스·폭격/위성/눈보라, 탱크 피격 반경 RULES.hitR)으로 탄을 굴려서
+ *        "이 각도·이 힘이면 어디에 떨어지는지" 를 예측하고, 목표에 맞는 각도/힘과 허용 구간(초록 구간)을 찾는다.
+ *   2) Assist        — 게임 쪽 엔진: 목표 선택, 추천값 계산(입력이 바뀔 때만), 실시간 궤적 미리보기,
+ *        코치 메시지, H/T/G 키, 자동 조준, 'ready' 소리. 그림은 View.html / 코치 카드는 HudMarkup.html.
+ *
+ *   ※ 클라이언트 로컬 전용. 시뮬레이션(결정적 재생)에는 절대 영향을 주지 않는다.
+ *      (사람 턴 시작 때 p.facing 만 목표 쪽으로 돌려 준다 — 발사 params 에 원래 실리는 값)
+ * ========================================================= */
+
+const AssistSolver = (function () {
+  'use strict';
+  let SHOTS = 0, STEPS = 0;     // 통계 (테스트/튜닝용)
+  const round1 = v => Math.round(v * 10) / 10;
+  const clampv = (v, a, b) => v < a ? a : v > b ? b : v;
+
+  /** 규칙 (RULES 는 다른 파일에서 오므로 없을 때를 대비한 기본값) */
+  function rulesOf(opts) {
+    const R = (opts && opts.rules) || (typeof RULES !== 'undefined' ? RULES : null) || {};
+    return {
+      hitR: R.hitR != null ? R.hitR : TANK_HIT_R,
+      blastMul: R.blastMul != null ? R.blastMul : 1,
+      noSelf: !!R.noSelfHit
+    };
+  }
+  /** 무기 종류: 'shell'(일반탄·호밍·분열·드릴·바운스) | 'orbital' | 'air' | 'blizzard' | 'mound'(얼음벽) */
+  function wclass(w) { return w.mound ? 'mound' : (w.strike || 'shell'); }
+
+  /** 포신 회전축 (탱크 기울기 반영) — Sim.muzzle 과 같은 식. 각도와 무관하므로 한 번만 계산 */
+  function pivotOf(mask, shooter, facing) {
+    const t = calcTilt(mask, shooter), px = -3 * facing * TANK_SCALE, py = -25 * TANK_SCALE;
+    return {
+      cx: shooter.x + Math.cos(t) * px - Math.sin(t) * py,
+      cy: shooter.y + Math.sin(t) * px + Math.cos(t) * py, tilt: t, f: facing
+    };
+  }
+  function muzzleAt(pv, angleDeg) {
+    const a = angleDeg * Math.PI / 180, L = 30 * TANK_SCALE;
+    return { x: pv.cx + pv.f * Math.cos(a) * L, y: pv.cy - Math.sin(a) * L };
+  }
+
+  /** 드릴이 판 구멍(겹침) 안인가 — TerrainMask.crater 와 같은 픽셀 규칙 */
+  function cleared(cr, xi, yi) {
+    for (let k = 0; k < cr.length; k += 3) {
+      const dy = yi - cr[k + 1], r = cr[k + 2];
+      if (dy > r || dy < -r) continue;
+      const dx = xi - cr[k];
+      if (dx * dx <= r * r - dy * dy) return true;
+    }
+    return false;
+  }
+  function solidF(env, xf, yf) {
+    const xi = xf | 0, yi = yf | 0;
+    if (xi < 0 || xi >= W || yi < 0 || yi >= H || env.mask[yi * W + xi] !== 1) return false;
+    return !(env.cr.length && cleared(env.cr, xi, yi));
+  }
+
+  /* ---------- 폭격/위성/눈보라: 폭발 x 를 기준으로 실제 피해가 닿는 범위 (목표.x - 폭발.x) ----------
+   *  위성 레이저는 폭발 x 에서 위→아래로 내려오며 가로 거리만 본다(지형 무관).
+   *  폭격기/눈보라는 하늘에서 폭탄/고드름이 떨어지므로, 공중 섬·언덕에 막히는 것까지 포함해 폭탄을 실제로 굴려 본다:
+   *   "폭탄이 X0 에서 떨어지면 목표가 다치는가" 의 구간을 구한 뒤(굵게 훑고 경계는 이분), 폭발 x 마다
+   *   (폭격기는 좌/우 어느 쪽으로 날아와도, 흔들림 ±8/±10 에도) 반드시 닿는 폭발 x 범위를 구한다. */
+  function bombEnv(env, bw) {
+    const e = Object.assign({}, env), wm = bw.windMul === undefined ? 1 : bw.windMul;
+    e.w = bw; e.cls = 'shell'; e.apex = false; e.cr = []; e.speedMul = 1; e.target = null;
+    e.ax = env.wind * WIND_ACC * wm * SIM_DT; e.ay = GRAV * (bw.gravMul || 1) * SIM_DT;
+    e.out = { kind: '', x: 0, y: 0, tank: null, steps: 0 };
+    e.R = bw.r * env.bm; e.maxSteps = Math.round(9 / SIM_DT);
+    return e;
+  }
+  function hitIntervals(fn, lo, hi, step) {
+    const pts = [];
+    for (let X = lo; X <= hi; X += step) pts.push([X, fn(X)]);
+    const iv = [];
+    for (let i = 0; i < pts.length;) {
+      if (!pts[i][1]) { i++; continue; }
+      let j = i;
+      while (j + 1 < pts.length && pts[j + 1][1]) j++;
+      let L = pts[i][0], Rr = pts[j][0];
+      if (i > 0) { let g = pts[i][0], b = pts[i - 1][0]; while (g - b > 2) { const m = (g + b) / 2; if (fn(m)) g = m; else b = m; } L = g; }
+      if (j + 1 < pts.length) { let g = pts[j][0], b = pts[j + 1][0]; while (b - g > 2) { const m = (g + b) / 2; if (fn(m)) g = m; else b = m; } Rr = g; }
+      iv.push([L, Rr]);
+      i = j + 1;
+    }
+    return iv;
+  }
+  function strikeWindow(env, target) {
+    const w = env.w, bm = env.bm;
+    if (env.cls === 'orbital') {
+      const half = w.sr * bm + 14 - 3;
+      return { lo: -half, hi: half };
+    }
+    const air = env.cls === 'air';
+    const bw = air ? { name: '폭탄', spr: 'bomb', dmg: w.sdmg, r: w.sr, windMul: 0.25, fx: 'fire' }
+                   : { name: '고드름', spr: 'icicle', dmg: w.sdmg, r: w.sr, windMul: 0.15, fx: 'ice' };
+    const benv = bombEnv(env, bw), reach = benv.R + env.hitR - 1, jit = air ? 8 : 10;
+    const dirs = air ? [1, -1] : [0];
+    const tx = target.x, ty = target.y - 14;
+    const ivs = dirs.map(dir => hitIntervals(X0 => {
+      const o = fly(benv, X0, air ? -30 : -40, air ? dir * 70 : 0, air ? 80 : 260, null, undefined, benv.out);
+      if (o.kind !== 'tank' && o.kind !== 'ground') return false;
+      if (o.tank && o.tank.id === target.id) return true;
+      const dx = tx - o.x, dy = ty - o.y;
+      return dx * dx + dy * dy < reach * reach;
+    }, tx - 330, tx + 330, 16));
+    const offs = air ? [[-180, -120, -60, 0, 60, 120, 180], [180, 120, 60, 0, -60, -120, -180]] : [[-96, -48, 0, 48, 96]];
+    const inIv = (iv, X0) => { for (const q of iv) if (X0 - jit - 4 >= q[0] && X0 + jit + 4 <= q[1]) return true; return false; };
+    let best = null, cur = null;
+    for (let dd = -420; dd <= 420; dd += 3) {
+      const ex = tx - dd;
+      let ok = true;
+      for (let k = 0; k < dirs.length && ok; k++) {
+        let any = false;
+        for (const o of offs[k]) if (inIv(ivs[k], ex + o)) { any = true; break; }
+        if (!any) ok = false;
+      }
+      if (ok) { if (!cur) cur = { lo: dd, hi: dd }; else cur.hi = dd; if (!best || cur.hi - cur.lo > best.hi - best.lo) best = cur; }
+      else cur = null;
+    }
+    return best && best.hi - best.lo >= 6 ? { lo: best.lo, hi: best.hi } : null;
+  }
+
+  /** 폭격류 범위는 비싸므로(폭탄 수십 발) 같은 조건이면 재사용 — 실시간 미리보기가 프레임마다 부르기 때문 */
+  const maskIds = typeof WeakMap === 'function' ? new WeakMap() : null;
+  let maskSeq = 0, winCache = { key: '', win: null };
+  function cachedWindow(env, opts) {
+    let id = 0;
+    if (maskIds) { id = maskIds.get(env.mask); if (!id) { id = ++maskSeq; maskIds.set(env.mask, id); } }
+    let key = [id, opts.terrainKey || 0, env.cls, env.wind, env.w.sr, env.w.sdmg, env.hitR, env.bm, env.sid, env.target.id, Math.round(env.target.x), Math.round(env.target.y)].join(',');
+    for (const p of env.list) key += '|' + (p.alive ? Math.round(p.x) + ',' + Math.round(p.y) : 'x');
+    if (winCache.key !== key) winCache = { key, win: strikeWindow(env, env.target) };
+    return winCache.win;
+  }
+
+  /** 계산 환경: 한 번 만들어 두고 각도/힘만 바꿔 가며 여러 번 굴린다 */
+  function makeEnv(mask, players, shooter, facing, weapon, wind, opts) {
+    opts = opts || {};
+    const rl = rulesOf(opts);
+    const list = players.map(p => (p.id === shooter.id ? shooter : p)).map(p => ({ id: p.id, x: p.x, y: p.y, alive: !!p.alive, team: p.team || 0 }));
+    const cls = wclass(weapon), wm = weapon.windMul === undefined ? 1 : weapon.windMul;
+    const env = {
+      mask, list, n: list.length, sid: shooter.id, team: shooter.team || 0, facing, w: weapon, cls, wind,
+      ax: wind * WIND_ACC * wm * SIM_DT, ay: GRAV * (weapon.gravMul || 1) * SIM_DT, speedMul: weapon.speedMul || 1,
+      hitR: rl.hitR, hitR2: rl.hitR * rl.hitR, bm: rl.blastMul, noSelf: rl.noSelf,
+      pivot: pivotOf(mask, shooter, facing), cr: [], maxSteps: Math.round(14 / SIM_DT), target: null, win: null,
+      apex: cls === 'shell' && weapon.split === 'apex', wm, gm: weapon.gravMul || 1,
+      R: cls === 'mound' ? weapon.mound : (cls === 'orbital' ? weapon.sr : weapon.r) * (cls === 'mound' ? 1 : rl.blastMul),
+      out: { kind: '', x: 0, y: 0, tank: null, steps: 0 }, out2: { kind: '', x: 0, y: 0, tank: null, steps: 0 },
+      shooterRef: shooter
+    };
+    env.tol = 0.75 * (env.R + env.hitR);      // 초록 구간 = 이만큼 안에 떨어지는 범위 (피해 반경 R+hitR 보다 안쪽)
+    if (opts.targetId != null) {
+      env.target = list.find(p => p.id === opts.targetId) || null;
+      if (env.target && (cls === 'orbital' || cls === 'air' || cls === 'blizzard')) env.win = cachedWindow(env, opts);
+    }
+    return env;
+  }
+
+  function fin(env, out, kind, x, y, tank, steps, path) {
+    out.kind = kind; out.x = x; out.y = y; out.tank = tank; out.steps = steps; STEPS += steps;
+    if (path) path.push([x, y]);
+    return out;
+  }
+
+  /**
+   * 탄 하나를 Sim.stepProj 와 똑같이 굴린다.
+   *  - 일반탄/호밍/드릴/바운스/집속(착탄 분열)/정점 분열(가운데 자탄)/폭격·위성·눈보라(첫 폭발 지점) 지원
+   *  - dvy: 정점 분열 가운데 자탄의 수직 속도 보정 (Sim: -20 + (rng-0.5)*30 → -35..-5)
+   */
+  function shoot(env, angle, power, path, dvy, out) {
+    const f = env.facing, a = angle * Math.PI / 180, mz = muzzleAt(env.pivot, angle);
+    const speed = power / 100 * VMAX * env.speedMul;
+    return fly(env, mz.x, mz.y, f * Math.cos(a) * speed, -Math.sin(a) * speed, path, dvy, out);
+  }
+  /** 시작 위치/속도에서 Sim.stepProj 와 똑같이 한 발을 끝까지 굴린다 (폭탄도 같은 함수로) */
+  function fly(env, x, y, vx, vy, path, dvy, out) {
+    const dt = SIM_DT, mask = env.mask, list = env.list, n = env.n, cr = env.cr, sid = env.sid, W_ = env.w;
+    cr.length = 0;
+    let age = 0, bounces = W_.bounce || 0, drill = W_.drill || 0, split = W_.split || null;
+    const homing = !!W_.homing, ax = env.ax, ay = env.ay, hitR2 = env.hitR2, noSelf = env.noSelf, team = env.team;
+    const childDv = dvy === undefined ? -20 : dvy;
+    if (path) path.push([x, y]);
+    let steps = 0;
+    SHOTS++;
+    for (;;) {
+      if (++steps > env.maxSteps) return fin(env, out, 'timeout', x, y, null, steps, path);
+      age += dt;
+      vx += ax; vy += ay;
+      if (homing && vy > 0 && age > 0.4) {
+        let t = null, bd = 1e9;
+        for (let i = 0; i < n; i++) {
+          const p = list[i];
+          if (!p.alive || p.id === sid || (team && p.team === team)) continue;
+          const d = Math.hypot(p.x - x, p.y - y);
+          if (d < bd) { bd = d; t = p; }
+        }
+        if (t) {
+          const want = Math.atan2(t.y - 14 - y, t.x - x), cur = Math.atan2(vy, vx);
+          let diff = want - cur;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          const ang = cur + clampv(diff, -3.0 * dt, 3.0 * dt), sp = Math.max(Math.hypot(vx, vy), 380);
+          vx = Math.cos(ang) * sp; vy = Math.sin(ang) * sp;
+        }
+      }
+      if (split === 'apex' && vy >= 0 && age > 0.12) {
+        // 가운데 자탄 (Sim 은 같은 틱 안에서 자탄도 한 스텝 더 진행한다 → 그대로 이어서 반복)
+        vy += childDv; age = 0; split = null;
+        continue;
+      }
+      const ox = x, oy = y;
+      x += vx * dt; y += vy * dt;
+      if (path && (steps & 1) === 0) path.push([x, y]);
+      if (x < -400 || x > W + 400) return fin(env, out, 'out', x, y, null, steps, path);
+      if (y > SEA) return fin(env, out, 'sea', x, y, null, steps, path);
+      for (let i = 0; i < n; i++) {
+        const p = list[i];
+        if (!p.alive || (p.id === sid && (age < 0.35 || noSelf))) continue;
+        const dx = x - p.x, dy = y - (p.y - 14);
+        if (dx * dx + dy * dy < hitR2) return fin(env, out, 'tank', x, y, p, steps, path);
+      }
+      const xi = x | 0, yi = y | 0;
+      if (xi >= 0 && xi < W && yi >= 0 && yi < H && mask[yi * W + xi] === 1 && !(cr.length && cleared(cr, xi, yi))) {
+        if (drill > 0) {
+          drill -= Math.hypot(vx, vy) * dt;
+          vx *= 0.99; vy *= 0.99;
+          if (Math.floor(age * 60) % 2 === 0) cr.push(Math.round(x), Math.round(y), 10);
+          if (drill <= 0) return fin(env, out, 'ground', x, y, null, steps, path);
+          continue;
+        }
+        if (bounces > 0) {
+          let nx = 0, ny = 0;
+          for (let dy = -6; dy <= 6; dy += 2) for (let dx = -6; dx <= 6; dx += 2) if (solidF(env, x + dx, y + dy)) { nx -= dx; ny -= dy; }
+          const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l;
+          if (!nx && !ny) ny = -1;
+          x = ox; y = oy;
+          const d = vx * nx + vy * ny;
+          if (d < 0) { vx -= 2 * d * nx; vy -= 2 * d * ny; }
+          vx *= 0.62; vy *= 0.62;
+          bounces--;
+          continue;
+        }
+        if (split === 'impact') return fin(env, out, 'ground', ox, oy, null, steps, path);
+        return fin(env, out, 'ground', x, y, null, steps, path);
+      }
+    }
+  }
+
+  /** 결과가 목표에 실제 피해를 주는가 (d = 폭발 지점과 목표 중심의 거리 / 폭격류는 x 차이) */
+  function judge(env, out) {
+    const t = env.target;
+    if (!t || out.kind === 'sea' || out.kind === 'out' || out.kind === 'timeout') return { hit: false, d: 1e9 };
+    if (env.cls === 'shell') {
+      const dx = t.x - out.x, dy = (t.y - 14) - out.y, d = Math.sqrt(dx * dx + dy * dy);
+      return { hit: d <= env.tol, d };
+    }
+    if (env.cls === 'mound') return { hit: false, d: 1e9 };
+    const dd = t.x - out.x, w = env.win;
+    return { hit: !!w && dd >= w.lo && dd <= w.hi, d: Math.abs(dd - (w ? (w.lo + w.hi) / 2 : 0)) };
+  }
+
+  /** 한 발 평가: 가운데 탄(경로 포함) + (정점 분열이면 자탄 수직속도 양 극단에서도 맞아야 hit) */
+  function evalShot(env, angle, power, path) {
+    if (env.apex && !path) {
+      // 가운데 자탄은 양 극단 사이 → 극단 둘이 맞으면 맞는다 (틀리면 한 발로 끝)
+      const o1 = shoot(env, angle, power, null, -35, env.out), j1 = judge(env, o1);
+      if (!j1.hit) return { out: o1, hit: false, d: j1.d };
+      const j2 = judge(env, shoot(env, angle, power, null, -5, env.out2));
+      return { out: o1, hit: j2.hit, d: (j1.d + j2.d) / 2 };
+    }
+    const out = shoot(env, angle, power, path, undefined, env.out);
+    const j = judge(env, out);
+    let hit = j.hit;
+    if (env.apex && hit) {
+      const o2 = env.out2;
+      hit = judge(env, shoot(env, angle, power, null, -35, o2)).hit && judge(env, shoot(env, angle, power, null, -5, o2)).hit;
+    }
+    return { out, hit, d: j.d };
+  }
+  const hitAt = (env, a, p) => evalShot(env, a, p, null).hit;
+
+  /** 목표 조준점 (aimX, aimY) 을 지나는 탄도의 힘 (정확 해 — Sim 의 반암시적 오일러까지 반영). 없으면 -1 */
+  function analytic(env, angle) {
+    const f = env.facing, a = angle * Math.PI / 180, A = f * Math.cos(a), B = Math.sin(a);
+    const mz = muzzleAt(env.pivot, angle), dx = env.aimX - mz.x, dy = env.aimY - mz.y;
+    const wax = env.ax / SIM_DT, g = env.ay / SIM_DT;
+    const den = B * wax + A * g, num = B * dx + A * dy;
+    if (Math.abs(den) < 1e-9) return -1;
+    const q = 2 * num / den;
+    if (!(q > 0)) return -1;
+    const dt = SIM_DT, t = (-dt + Math.sqrt(dt * dt + 4 * q)) / 2;
+    const st = (dx - 0.5 * wax * q) / A, s = st / t;
+    if (!(s > 0) || !isFinite(s)) return -1;
+    return s / (VMAX * env.speedMul) * 100;
+  }
+
+  /** 이 각도에서 목표에 맞는 힘 하나 찾기 (해석 해 → 필요하면 할선법으로 보정). {p, res} 또는 null */
+  function findPower(env, a, p0in) {
+    const p0 = p0in != null ? p0in : analytic(env, a);
+    if (p0 < 2 || p0 > 104) return null;
+    let p = round1(clampv(p0, 2, 100)), prevP = null, prevE = null, bestE = 1e9;
+    const mz = muzzleAt(env.pivot, a), span = Math.abs(env.aimX - mz.x);
+    for (let it = 0; it < 5; it++) {
+      const r = evalShot(env, a, p, null);
+      if (r.hit) return { p, res: r };
+      const o = r.out;
+      if (o.kind === 'out' && Math.abs(o.x - env.aimX) > 700) return null;
+      let e = env.facing * (o.x - env.aimX);
+      const ae = Math.abs(e);
+      if (ae > 500 || (it >= 2 && ae > bestE * 0.8)) return null;   // 더 좋아지지 않으면 포기 (막힌 각도에서 시간 낭비 방지)
+      bestE = Math.min(bestE, ae);
+      let slope = prevP != null && Math.abs(p - prevP) > 1e-6 ? (e - prevE) / (p - prevP) : 2 * span / Math.max(p, 5);
+      if (!(slope > 1)) slope = 2 * span / Math.max(p, 5);
+      prevP = p; prevE = e;
+      let np = p - e / slope;
+      np = clampv(np, p - 12, p + 12);
+      np = round1(clampv(np, 2, 100));
+      if (np === p) np = round1(p + (e > 0 ? -0.1 : 0.1));
+      p = np;
+    }
+    return null;
+  }
+
+  /** 맞는 힘 pc 에서 양쪽으로 넓혀 [lo,hi] (0.1 단위, 실제로 맞는 것만) */
+  function powerZone(env, a, pc) {
+    const edge = dir => {
+      let good = Math.round(pc * 10), bad = null, step = 5;
+      for (let i = 0; i < 14; i++) {
+        const q = good + dir * step;
+        if (q < 10 || q > 1000) { bad = clampv(q, 10, 1000); if (bad === good) break; if (hitAt(env, a, bad / 10)) { good = bad; bad = null; } break; }
+        if (hitAt(env, a, q / 10)) { good = q; step = Math.ceil(step * 1.7); } else { bad = q; break; }
+      }
+      if (bad != null) {
+        while (Math.abs(bad - good) > 1) {
+          const mid = Math.round((good + bad) / 2);
+          if (hitAt(env, a, mid / 10)) good = mid; else bad = mid;
+        }
+      }
+      return good / 10;
+    };
+    const lo = edge(-1), hi = edge(1);
+    return { lo, hi };
+  }
+
+  /** 좋은 정도 (작을수록 좋음): 각도는 ~50° (30~75), 힘은 30~95 가 가르치기 좋고, 초록 구간은 넓을수록 좋다 */
+  function anglePenalty(a) { return Math.abs(a - 50) * 0.6 + (a < 30 ? (30 - a) * 2.5 : 0) + (a > 75 ? (a - 75) * 3 : 0); }
+  function powerPenalty(p) { return (p < 30 ? (30 - p) * 1.5 : 0) + (p > 90 ? (p - 90) * 2 + (p > 95 ? (p - 95) * 8 : 0) : 0); }
+  function widthBonus(w) { return 12 * (1 - Math.exp(-w / 2.5)); }
+  function narrowPenalty(w) { return w < 1.5 ? 14 : w < 2.5 ? 4 : 0; }
+
+  function aimSetup(env, target) {
+    const off = env.win ? (env.win.lo + env.win.hi) / 2 : 0;
+    env.aimX = target.x - off; env.aimY = target.y - 14;
+  }
+
+  /**
+   * 추천: 목표에 맞는 (각도, 힘) 과 허용 구간.
+   *  반환 { ok, reason, angle, power, pLo, pHi, aLo, aHi, facing, dist, blast, tol, d, selfRisk }
+   *   reason: 'notarget' | 'mound' | 'far' | 'blocked' | ''(ok)
+   */
+  function solve(mask, players, shooter, targetId, weapon, wind, opts) {
+    opts = Object.assign({}, opts, { targetId });
+    const rec = { ok: false, reason: 'notarget', angle: 45, power: 50, pLo: 0, pHi: 0, aLo: 45, aHi: 45, facing: shooter.facing || 1, dist: 0, blast: 0, tol: 0, d: 0, selfRisk: false };
+    const target = players.find(p => p.id === targetId);
+    if (!target || !target.alive) return rec;
+    rec.dist = Math.hypot(target.x - shooter.x, target.y - shooter.y);
+    const facing = opts.facing || (target.x >= shooter.x ? 1 : -1);
+    rec.facing = facing;
+    if (wclass(weapon) === 'mound') { rec.reason = 'mound'; return rec; }
+    const env = makeEnv(mask, players, shooter, facing, weapon, wind, opts);
+    rec.blast = env.R; rec.tol = env.tol;
+    if (!env.target) { rec.reason = 'blocked'; return rec; }
+    if (env.cls !== 'shell' && !env.win) { rec.reason = 'roof'; return rec; }   // 위성/폭격/눈보라: 머리 위가 막혀 닿을 수 없음
+    aimSetup(env, env.target);
+    // 각도는 50° 에서 가까운 순으로 훑는다. 각도마다 (해석 해 → 필요하면 보정) 으로 맞는 힘을 찾고,
+    // 초록 구간(허용 폭)을 계산해 "가르치기 좋고 폭이 넓은" 것을 고른다.
+    // 해석 해로 미리 추정한 최선의 점수가 지금 최고점을 못 이기면 시뮬레이션 없이 건너뛴다 (가지치기).
+    const ballistic = env.cls === 'shell' && !weapon.homing && !weapon.drill && !weapon.bounce;
+    const widen = weapon.homing ? 14 : (weapon.drill || weapon.bounce) ? 2 : 1;
+    let best = null, zones = 0, anyAnalytic = false;
+    const shots0 = SHOTS;
+    for (let d = 0; d <= 50; d++) {
+      if (!best && SHOTS - shots0 > 380) break;   // 아무리 찾아도 없으면 (막힌 지형) 오래 붙잡지 않는다
+      for (let sgn = 1; sgn >= (d ? -1 : 1); sgn -= 2) {
+        const a = 50 + sgn * d;
+        if (a < 0 || a > 89) continue;      // 0° (수평)까지: 절벽 아래 목표는 거의 수평으로 쏘면 맞는다
+        const p0 = analytic(env, a);
+        if (p0 > 2) anyAnalytic = true;
+        if (p0 < 2 || p0 > 104) continue;
+        const ap = anglePenalty(a);
+        if (best) {
+          const span = Math.max(80, Math.abs(env.aimX - muzzleAt(env.pivot, a).x));
+          const wEst = ballistic ? 0.8 * env.tol * p0 / span : Math.min(14, widen * 0.8 * env.tol * p0 / span);   // 보통 실제 폭은 이 값의 0.6~0.9배
+          if (ap + powerPenalty(p0) - widthBonus(wEst) >= best.score) continue;
+          if (zones >= 12) continue;
+        }
+        const r = findPower(env, a, p0);
+        if (!r) continue;
+        zones++;
+        const z = powerZone(env, a, r.p), width = z.hi - z.lo, pm = round1((z.lo + z.hi) / 2);
+        const pmid = hitAt(env, a, pm) ? pm : r.p;
+        const res = evalShot(env, a, pmid, null);
+        let self = false;
+        if (!env.noSelf && res.out.kind !== 'sea') {
+          const sx = shooter.x - res.out.x, sy = shooter.y - 14 - res.out.y;
+          self = Math.sqrt(sx * sx + sy * sy) < env.R + env.hitR + 6;
+        }
+        const score = anglePenalty(a) + powerPenalty(pmid) - widthBonus(width) + narrowPenalty(width) + (self ? 60 : 0);
+        if (!best || score < best.score) best = { a, p: pmid, z, width, score, self, d: res.d };
+      }
+    }
+    if (!best) { rec.reason = anyAnalytic && rec.dist < 1900 ? 'blocked' : 'far'; return rec; }
+    rec.ok = true; rec.reason = '';
+    rec.angle = best.a; rec.power = best.p; rec.pLo = best.z.lo; rec.pHi = best.z.hi; rec.selfRisk = best.self; rec.d = best.d;
+    // 3) 각도 허용 구간 (그 힘 그대로, 정수 각도)
+    let lo = best.a, hi = best.a;
+    for (let k = 1; k <= 25 && best.a - k >= 0; k++) { if (hitAt(env, best.a - k, best.p)) lo = best.a - k; else break; }
+    for (let k = 1; k <= 25 && best.a + k <= 90; k++) { if (hitAt(env, best.a + k, best.p)) hi = best.a + k; else break; }
+    rec.aLo = lo; rec.aHi = hi;
+    return rec;
+  }
+
+  /** 지금 각도(정수)에서 목표에 맞는 힘 구간 → { ok, power, pLo, pHi } */
+  function zoneAt(mask, players, shooter, targetId, weapon, wind, angle, opts) {
+    opts = Object.assign({}, opts, { targetId });
+    const target = players.find(p => p.id === targetId);
+    if (!target || !target.alive || wclass(weapon) === 'mound') return { ok: false };
+    const facing = opts.facing || (target.x >= shooter.x ? 1 : -1);
+    const env = makeEnv(mask, players, shooter, facing, weapon, wind, opts);
+    if (!env.target || (env.cls !== 'shell' && !env.win)) return { ok: false };
+    aimSetup(env, env.target);
+    let r = findPower(env, angle);
+    // 해석 해가 안 맞아도, 추천값(seedPower)이 이 각도에서 실제로 맞으면 거기서부터 구간을 넓힌다
+    if (!r && opts.seedPower != null && hitAt(env, angle, round1(opts.seedPower))) r = { p: round1(opts.seedPower) };
+    if (!r) return { ok: false };
+    const z = powerZone(env, angle, r.p), pm = round1((z.lo + z.hi) / 2);
+    return { ok: true, power: hitAt(env, angle, pm) ? pm : r.p, pLo: z.lo, pHi: z.hi };
+  }
+
+  /**
+   * 궤적 예측 (미리보기용): 이 각도/힘으로 쏘면 어디에 떨어지나
+   *  → { path:[[x,y]..]|null, land:{x,y,r,kind,band?}, hit(목표 명중), hitIds(피해 입는 적/아군 id 후보), self(내가 다침), kind }
+   *  opts: { targetId, rules, path:false(경로 생략) }
+   */
+  function traj(mask, players, shooter, facing, angle, power, weapon, wind, opts) {
+    opts = opts || {};
+    const env = makeEnv(mask, players, shooter, facing, weapon, wind, opts);
+    const path = opts.path === false ? null : [];
+    const r = evalShot(env, angle, power, path);
+    const o = r.out, land = { x: o.x, y: o.y, r: env.R, kind: o.kind };
+    if (env.win) land.band = { x0: o.x + env.win.lo, x1: o.x + env.win.hi };
+    // 이 폭발이 피해를 주는 사람 (일반탄: 폭발 반경+피격 반경 / 위성: 가로 범위)
+    const hits = [];
+    let self = false;
+    if (o.kind !== 'sea' && o.kind !== 'out' && o.kind !== 'timeout' && env.cls !== 'mound') {
+      for (const p of env.list) {
+        if (!p.alive) continue;
+        let dmg;
+        if (env.cls === 'shell') { const d = Math.hypot(p.x - o.x, p.y - 14 - o.y); dmg = d < env.R + env.hitR; }
+        else if (env.cls === 'orbital') dmg = Math.abs(p.x - o.x) < env.R + 14;
+        else dmg = env.win && p.x - o.x >= env.win.lo && p.x - o.x <= env.win.hi;
+        if (!dmg) continue;
+        if (p.id === env.sid) { if (!env.noSelf) self = true; } else hits.push(p.id);
+      }
+    }
+    return { path, land, hit: r.hit, d: r.d, hits, self, kind: o.kind, tank: o.tank ? o.tank.id : null, cls: env.cls };
+  }
+
+  return { traj, solve, zoneAt, muzzleAt, pivotOf, wclass, stats: () => ({ shots: SHOTS, steps: STEPS }), analytic: (mask, players, shooter, facing, angle, weapon, wind, aim, opts) => {
+    const env = makeEnv(mask, players, shooter, facing, weapon, wind, opts); env.aimX = aim.x; env.aimY = aim.y; return analytic(env, angle);
+  } };
+})();
+
+/* =========================================================
+ *  Assist 엔진 (게임 쪽)
  * ========================================================= */
 const Assist = {
-  level: 0, state: null,
-  allowed() { return false; }, setLevel() {}, cycle() {}, autoAim() {},
-  onTurn() {}, tick() {}, reset() {}
+  level: 0,                 // 0 끄기 · 1 궤적 · 2 전체(궤적 + 추천 각도/힘)
+  userSet: false,           // 이번 판에서 사람이 직접 바꿨는가 (안 바꿨으면 기본값: 비기너 2 / 그 외 0)
+  target: null,             // 목표 플레이어 id
+  state: {
+    active: false, level: 0, target: null, rec: null, path: null, land: null,
+    msg: { step: 1, text: '', tone: 'info', icon: '', sub: '' },
+    inAngle: false, inPower: false, zone: null, hit: false, steps: ['todo', 'todo', 'todo'], angle: 0, power: 0, charging: false, targetName: ''
+  },
+  _pw: null, _picked: false, _sig: '', _nextT: 0, _aim: null, _wasIn: false, _zoneKey: '', _zone: null, _rec: null, _recFor: '', _busy: 0,
+
+  /** 이 판에서 도우미를 쓸 수 있는가: 비기너 매치이거나 로컬 연습(온라인 일반 방은 공정성을 위해 금지) */
+  allowed() {
+    try { return typeof G !== 'undefined' && !!G && !G.attract && (G.beginner === true || !!(G.backend && G.backend.local)); }
+    catch (e) { return false; }
+  },
+  defaultLevel() { return typeof G !== 'undefined' && G && G.beginner === true ? 2 : 0; },
+  setLevel(n) {
+    n = ((Math.round(+n) || 0) % 3 + 3) % 3;
+    if (!this.allowed()) n = 0;
+    this.level = n; this.userSet = true; this._sig = ''; this._aim = null;
+    this._notify();
+  },
+  cycle() {
+    if (!this.allowed()) { this._say('이 방에서는 조준 도우미를 쓸 수 없어요'); return; }
+    this.setLevel((this.level + 1) % 3);
+    this._say(['🎯 조준 도우미: 꺼짐', '🎯 조준 도우미 1단계: 점선 궤적', '🎯 조준 도우미 2단계: 궤적 + 추천 각도·힘'][this.level]);
+    if (typeof Sound !== 'undefined' && Sound.play) Sound.play('click');
+  },
+  _say(msg) { try { if (typeof toast === 'function') toast(msg); } catch (e) { /* 무시 */ } },
+  _notify() { try { if (typeof updateHud === 'function' && G.screen === 'play') updateHud(true); } catch (e) { /* 무시 */ } },
+
+  /** 사람 턴 시작 (Game.beginTurn) */
+  onTurn(p, ctl) { this._guard(() => this._onTurn(p, ctl)); },
+  _onTurn(p, ctl) {
+    if (!p || !this.allowed()) { this._clear(); return; }
+    if (!this.userSet) this.level = this.defaultLevel();
+    this._aim = null; this._sig = ''; this._zoneKey = ''; this._wasIn = false; this._rec = null; this._nextT = 0; this._picked = false; this._pw = null;
+    this.target = this._nearest(p);
+    if (this.level >= 2) {
+      const t = this.target != null ? findPlayer(this.target) : null;
+      if (t && Math.abs(t.x - p.x) > 4) p.facing = t.x >= p.x ? 1 : -1;   // 로컬 상태(발사 params 에 원래 실림)만 바꿈
+    }
+    this._notify();
+  },
+  reset() {
+    this.level = 0; this.userSet = false; this.target = null; this._aim = null; this._clear();
+  },
+  _clear() {
+    const s = this.state;
+    s.active = false; s.rec = null; s.path = null; s.land = null; s.zone = null; s.hit = false; s.inAngle = false; s.inPower = false; s.target = null;
+    s.level = this.level; s.charging = false; s.slow = false;
+    this._rec = null; this._sig = ''; this._wasIn = false; this._pw = null;
+  },
+
+  /* ---------- 목표 ---------- */
+  _enemies(p) {
+    const en = typeof isEnemy === 'function' ? isEnemy : (a, b) => a.id !== b.id && !(G.teamMode && a.team && a.team === b.team);
+    return G.players.filter(o => o.alive && !o.sunk && !o.left && en(p, o));
+  },
+  _nearest(p) {
+    let best = null, bd = 1e9;
+    for (const o of this._enemies(p)) { const d = Math.hypot(o.x - p.x, o.y - p.y); if (d < bd) { bd = d; best = o; } }
+    return best ? best.id : null;
+  },
+  nextTarget() {
+    const p = curPlayerSafe();
+    if (!p || !this.state.active && !this._humanTurn()) return;
+    const list = this._enemies(p).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y));
+    if (!list.length) return;
+    const i = list.findIndex(o => o.id === this.target);
+    this._setTarget(list[(i + 1) % list.length].id);
+  },
+  _setTarget(id) {
+    if (id === this.target) return;
+    this.target = id; this._picked = true; this._sig = ''; this._zoneKey = ''; this._nextT = 0;
+    if (typeof Sound !== 'undefined' && Sound.play) Sound.play('select');
+  },
+  /** 화면 좌표 (클릭/탭) 로 적 탱크 고르기. 골랐으면 true */
+  pickAt(sx, sy) {
+    const p = curPlayerSafe();
+    if (!p || !this._humanTurn() || this.level < 1 || !this.allowed()) return false;
+    let best = null, bd = 1e9;
+    const rad = Math.max(40, 30 * G.scale);
+    for (const o of this._enemies(p)) {
+      const s = w2s(o.x, o.y - 14), d = Math.hypot(s.x - sx, s.y - sy);
+      if (d < rad && d < bd) { bd = d; best = o; }
+    }
+    if (!best) return false;
+    this._setTarget(best.id);
+    return true;
+  },
+  _humanTurn() {
+    const c = G.ctl;
+    return !!(c && !c.ai && !c.done && G.turn && !G.turn.done && G.screen === 'play' && !G.attract);
+  },
+
+  /* ---------- 자동 조준 ---------- */
+  autoAim() {
+    const st = this.state, p = curPlayerSafe();
+    if (!st.active || !p) return;
+    const rec = st.rec;
+    if (!rec || !rec.ok) { this._say(rec && rec.reason === 'mound' ? '얼음벽은 원하는 곳에 자유롭게 쏴요!' : '가까이 가 볼까요? ◀ ▶ 로 움직여요'); return; }
+    if (G.ctl && G.ctl.charging) return;
+    if (p.facing !== rec.facing) p.facing = rec.facing;
+    this._aim = { to: rec.angle };
+    if (typeof Sound !== 'undefined' && Sound.play) Sound.play('select');
+  },
+
+  /* ---------- 매 프레임 (Game 루프, updateControl 직후) ---------- */
+  tick(dt) { this._guard(() => this._tick(dt)); },
+  /** 도우미에서 예외가 나도 게임 루프(Game.assistCall)가 도우미를 꺼 버리지 않도록 여기서 삼킨다 */
+  _guard(fn) {
+    try { fn(); }
+    catch (e) { if (!this._errN) { this._errN = 0; } if (++this._errN <= 3) console.error('Assist 오류', e); this._clear(); this._aim = null; }
+  },
+  _tick(dt) {
+    const st = this.state;
+    if (!this.allowed()) { if (this.level !== 0) this.level = 0; if (st.active) this._clear(); st.level = 0; return; }
+    if (this.level <= 0 || !this._humanTurn() || G.busy) { if (st.active || st.level !== this.level) this._clear(); st.level = this.level; return; }
+    const c = G.ctl, p = findPlayer(c.pid);
+    if (!p || !p.alive || p.cpu) { this._clear(); return; }
+    if (this.target == null || !this._validTarget(p, this.target)) { this.target = this._nearest(p); this._sig = ''; }
+    st.active = true; st.level = this.level; st.target = this.target;
+    st.charging = !!c.charging;
+    let tp = this.target != null ? findPlayer(this.target) : null;
+    st.targetName = tp ? tp.name : '';
+    const w = this._weapon(p, c);
+    if (!w) { this._clear(); return; }
+    const opts = { targetId: this.target };
+    const mask = G.terrain.mask, wind = G.turn.wind !== undefined ? G.turn.wind : (G.wind || 0);
+
+    /* 1) 추천값: 입력이 바뀌었을 때만 (걷는 동안은 잠깐씩 늦춰서) */
+    if (this.level >= 2 && tp) {
+      let sig = this._signature(p, c, w, tp, wind);
+      if (sig !== this._sig) {
+        const moving = (Input.left || Input.right) && !c.charging;
+        if (!moving || G.t >= this._nextT || !this._rec) {
+          this._zoneKey = '';
+          const t0 = performance.now();
+          let r = null;
+          try { r = AssistSolver.solve(mask, G.players, p, this.target, w, wind, opts); }
+          catch (e) { r = null; console.error('Assist.solve', e); }
+          // 사람이 목표를 직접 고르지 않았는데 지금 목표를 못 맞히면 → 맞힐 수 있는 다른 적으로 자동 전환
+          if (r && !r.ok && !this._picked && r.reason !== 'mound' && r.reason !== 'notarget') {
+            const alt = this._enemies(p).filter(o => o.id !== this.target).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y));
+            for (const o of alt) {
+              let r2 = null;
+              try { r2 = AssistSolver.solve(mask, G.players, p, o.id, w, wind, { targetId: o.id }); } catch (e) { r2 = null; }
+              if (r2 && r2.ok) {
+                this._say('🎯 앞이 막혀서 ' + o.name + ' 쪽으로 목표를 바꿨어요');
+                this.target = o.id; tp = o; r = r2; st.target = o.id; st.targetName = o.name;
+                if (!c.charging && !(c.fuelUsed > 0)) p.facing = r2.facing;
+                sig = this._signature(p, c, w, o, wind);
+                break;
+              }
+            }
+          }
+          this._sig = sig; this._rec = r;
+          this._busy = performance.now() - t0;
+          this._nextT = G.t + Math.max(0.15, this._busy / 1000 * 8);
+        }
+      }
+      st.rec = this._rec;
+    } else { st.rec = null; this._rec = null; this._sig = ''; }
+    const rec = st.rec;
+
+    /* 2) 자동 조준 (부드럽게) */
+    if (this._aim) {
+      if (c.charging || Input.up || Input.down || !rec || !rec.ok) this._aim = null;
+      else {
+        const d = this._aim.to - p.angle;
+        if (Math.abs(d) < 0.35) { p.angle = this._aim.to; this._aim = null; }
+        else p.angle = clamp(p.angle + clamp(d, -Math.max(35, Math.abs(d) * 5) * dt, Math.max(35, Math.abs(d) * 5) * dt), 0, 90);
+      }
+    }
+
+    /* 3) 지금 각도에서의 힘 구간 (정수 각도 기준, 각도가 바뀔 때만) */
+    const angI = Math.round(p.angle);
+    st.angle = angI;
+    st.inAngle = false; st.zone = null;
+    if (rec && rec.ok) {
+      const facingOk = p.facing === rec.facing;
+      if (facingOk && angI >= rec.aLo && angI <= rec.aHi) {
+        const zk = this._sig + '|' + angI;
+        if (zk !== this._zoneKey) {
+          this._zoneKey = zk;
+          try { this._zone = AssistSolver.zoneAt(mask, G.players, p, this.target, w, wind, angI, { targetId: this.target, seedPower: rec.power }); } catch (e) { this._zone = null; }
+        }
+        if (this._zone && this._zone.ok) { st.zone = this._zone; st.inAngle = true; }
+      }
+    }
+
+    /* 4-a) 초록 구간이 가까워지면 힘 막대가 천천히 올라가게 (구간 반응 시간을 늘려 줌 — 로컬 입력값일 뿐 시뮬레이션과 무관) */
+    st.slow = false;
+    const spd = typeof RULES !== 'undefined' && RULES.chargeSpeed ? RULES.chargeSpeed : 52;
+    let fz = 1;      // 초록 구간 안에서의 속도 배율 (구간에 최소 ~0.32초는 머물도록 — 좁을수록 더 천천히)
+    if (st.zone) fz = clamp((st.zone.pHi - st.zone.pLo) / 0.32 / spd, 0.18, 0.6);
+    if (c.charging) {
+      if (this.level >= 2 && st.zone && st.inAngle && this._pw != null && c.power > this._pw) {
+        const lo = st.zone.pLo - 9, hi = st.zone.pHi + 2;
+        if (c.power > lo && this._pw < hi) {
+          const f = this._pw >= st.zone.pLo - 1 ? fz : Math.max(fz, 0.5);   // 구간 직전까지는 살짝, 구간에서는 확실히 천천히
+          c.power = this._pw + (c.power - this._pw) * f; st.slow = true;
+        }
+      }
+      this._pw = c.power;
+    } else this._pw = null;
+
+    /* 4) 궤적 미리보기 (정수 각도, 0.1 단위 힘 — 실제 발사와 같은 값) */
+    let pw = c.charging ? Math.round(c.power * 10) / 10 : 0;
+    if (!c.charging) {
+      if (this.level >= 2 && st.zone) pw = st.zone.power;
+      else if (this.level >= 2 && rec && rec.ok) pw = rec.power;
+      else pw = p.lastPower != null ? p.lastPower : 60;
+    }
+    st.power = c.charging ? c.power : 0;
+    st.path = null; st.land = null; st.hit = false;
+    if (pw > 0) {
+      try {
+        const tr = AssistSolver.traj(mask, G.players, p, p.facing, angI, clamp(pw, 1, 100), w, wind, { targetId: this.target });
+        st.path = tr.path; st.land = tr.land; st.hit = tr.hit;
+        st.land.self = tr.self; st.land.hitAny = tr.hits.length > 0; st.land.live = c.charging;
+        // 각도가 아직 안 맞은 채 쉬는 중(추천 힘으로 미리보기)에는 '맞아요' 표시를 하지 않는다 (코치 문장과 어긋나 보이지 않게)
+        if (this.level >= 2 && !c.charging && !st.inAngle) { st.hit = false; st.land.hitAny = false; }
+      } catch (e) { st.path = null; }
+    }
+
+    /* 5) 파워가 초록 구간에 들어온 순간 소리 */
+    // '지금 놓으세요' 는 "지금 놓아도 맞는" 때만: 놓는 프레임에 힘이 한 프레임치(inc) 더 오르므로 그만큼 여유를 둔다
+    const inc = st.zone ? Math.min(spd * (st.slow ? fz : 1) * Math.min(0.05, Math.max(1 / 60, dt)), (st.zone.pHi - st.zone.pLo) * 0.35) : 0;
+    st.inPower = !!(c.charging && st.inAngle && st.zone && st.hit && pw >= st.zone.pLo && pw + inc <= st.zone.pHi);
+    if (st.inPower && !this._wasIn && typeof Sound !== 'undefined' && Sound.play) Sound.play('ready');
+    this._wasIn = st.inPower;
+
+    /* 6) 코치 메시지 */
+    this._message(p, c, w, tp);
+  },
+
+  _validTarget(p, id) { const o = findPlayer(id); return !!(o && o.alive && !o.sunk && !o.left && this._enemies(p).indexOf(o) >= 0); },
+  _weapon(p, c) {
+    const T = TANKS[p.tank]; let w = T && T.weapons[c.weapon];
+    if (w && c.item === 'power' && typeof poweredWeapon === 'function') w = poweredWeapon(w);
+    return w || null;
+  },
+  _signature(p, c, w, tp, wind) {
+    let s = [Math.round(p.x * 2), Math.round(p.y * 2), c.weapon, c.item || '', wind, G.terrain.ops.length, tp.id, Math.round(tp.x * 2), Math.round(tp.y * 2),
+      typeof RULES !== 'undefined' ? RULES.hitR + '/' + RULES.blastMul : '', p.facing === (tp.x >= p.x ? 1 : -1) ? 1 : 0].join(',');
+    for (const o of G.players) if (o !== p && o !== tp) s += '|' + (o.alive ? Math.round(o.x) + ',' + Math.round(o.y) : 'x');
+    return s;
+  },
+
+  /** 코치 카드에 보여줄 문장 (짧고 큰 글씨용) */
+  _message(p, c, w, tp) {
+    const st = this.state, rec = st.rec;
+    const M = (step, tone, icon, text, sub) => { st.msg = { step, tone, icon, text, sub: sub || '' }; };
+    st.steps = ['todo', 'todo', 'todo'];
+    if (this.level < 2) {
+      if (c.charging && st.hit) M(2, 'go', '🟢', '지금 놓으세요!!', '점선 끝이 초록이에요');
+      else M(1, 'info', '🎯', '점선이 적에게 닿게 맞춰요', '▲▼ 각도 · Space 꾹 힘');
+      return;
+    }
+    if (!tp) { M(1, 'warn', '🤔', '목표가 없어요', ''); return; }
+    if (!rec) { M(1, 'info', '🤔', '계산 중…', ''); return; }
+    if (!rec.ok) {
+      st.steps[0] = 'active';
+      if (rec.reason === 'mound') M(1, 'info', '🧊', '얼음벽은 세우고 싶은 곳에!', '점선 끝에 벽이 생겨요');
+      else if (rec.reason === 'far') M(1, 'warn', '🚶', '가까이 가 볼까요?', '◀ ▶ 로 목표 쪽으로 움직여요');
+      else if (rec.reason === 'roof') M(1, 'warn', '☁️', '머리 위가 막혀 있어요', '다른 무기나 다른 목표(T)는 어때요?');
+      else M(1, 'warn', '🚧', '앞이 막혀 있어요', '◀ ▶ 로 자리를 옮기거나 T 로 다른 목표!');
+      return;
+    }
+    const dirName = rec.facing > 0 ? '오른쪽 ▶' : '◀ 왼쪽';
+    if (p.facing !== rec.facing) {
+      st.steps[0] = 'active';
+      M(1, 'warn', rec.facing > 0 ? '👉' : '👈', '목표 쪽을 봐요!', (rec.facing > 0 ? '→' : '←') + ' 키를 눌러요 (' + dirName + ')');
+      return;
+    }
+    const a = st.angle, diff = rec.angle - a;
+    if (!st.inAngle) {
+      st.steps[0] = 'active';
+      if (diff > 0) M(1, 'act', '▲', diff > 10 ? '많이 올려요!' : '조금 더 올려요!', '지금 ' + a + '° → ' + rec.angle + '°');
+      else M(1, 'act', '▼', diff < -10 ? '많이 내려요!' : '조금 내려요!', '지금 ' + a + '° → ' + rec.angle + '°');
+      return;
+    }
+    st.steps[0] = 'done';
+    const z = st.zone, pw = c.charging ? Math.round(c.power * 10) / 10 : 0;
+    const zt = zoneText(z);
+    if (!c.charging) { st.steps[1] = 'active'; M(2, 'ok', '✅', '각도 딱 맞아요!', 'Space 를 꾹 눌러 초록 구간(' + zt + ')까지!' + (rec.selfRisk ? ' ⚠ 폭발이 내게도 닿아요' : '')); return; }
+    if (st.inPower) { st.steps[1] = 'done'; st.steps[2] = 'active'; M(3, 'go', '🟢', '지금 놓으세요!!', 'Space 를 떼요!'); return; }
+    st.steps[1] = 'active';
+    if (pw < z.pLo) {
+      if (st.slow) M(2, 'act', '⏳', '거의 다 왔어요! 준비~', '천천히 올라가요 · 초록 구간 ' + zt);
+      else M(2, 'act', '⏩', '초록 구간까지 채워요!', '지금 ' + Math.round(pw) + ' → ' + zt);
+    }
+    else if (pw <= z.pHi) { st.steps[1] = 'done'; st.steps[2] = 'active'; M(3, 'go', '🟢', '아슬아슬! 놓아요!!', 'Space 를 떼요!'); }
+    else M(2, 'bad', '⚠️', '앗, 너무 세요!', '다음엔 초록 구간(' + zt + ')에서 놓아요');
+  }
 };
+
+function curPlayerSafe() { try { return typeof curPlayer === 'function' ? curPlayer() : null; } catch (e) { return null; } }
+/** 힘 구간 글자: 정수로 딱 떨어지면 "62~66", 너무 좁으면 "약 62" */
+function zoneText(z) {
+  if (!z) return '';
+  const lo = Math.ceil(z.pLo - 1e-9), hi = Math.floor(z.pHi + 1e-9);
+  return hi - lo >= 1 ? lo + '~' + hi : '약 ' + Math.round(z.power);
+}
+
+/* 키 (H 단계 · G 자동 조준 · T 다음 목표) / 화면 탭으로 목표 고르기 — 브라우저에서만 등록 */
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('keydown', e => {
+    try {
+      if (typeof G === 'undefined' || G.screen !== 'play' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.target && /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+      const k = e.code || '';
+      if (k === 'KeyH') Assist.cycle();
+      else if (k === 'KeyG') Assist.autoAim();
+      else if (k === 'KeyT') Assist.nextTarget();
+    } catch (err) { /* 도우미 오류가 게임을 멈추지 않도록 */ }
+  });
+  let down = null;
+  window.addEventListener('pointerdown', e => { down = e.target === G.canvas ? { x: e.clientX, y: e.clientY, id: e.pointerId } : null; });
+  window.addEventListener('pointerup', e => {
+    try {
+      if (!down || down.id !== e.pointerId) return;
+      const d = Math.hypot(e.clientX - down.x, e.clientY - down.y); down = null;
+      if (d > 9 || G.screen !== 'play' || e.target !== G.canvas) return;
+      if (typeof mmHit === 'function' && mmHit(e.clientX, e.clientY)) return;
+      Assist.pickAt(e.clientX, e.clientY);
+    } catch (err) { /* 무시 */ }
+  });
+}
 </script>

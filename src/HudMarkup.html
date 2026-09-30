@@ -24,8 +24,8 @@
     <i class="screw tl"></i><i class="screw tr"></i><i class="screw bl"></i><i class="screw br"></i>
     <div class="dial"><canvas id="hud-angle" width="120" height="120"></canvas><b id="hud-angle-t">45°</b></div>
     <div class="gauges">
-      <div class="glabel"><span>POWER</span><em id="hud-live"></em><b id="hud-power-t">0</b></div>
-      <div class="gauge power"><i id="hud-power"></i><u id="hud-power-head"></u><div class="ticks"></div><em id="hud-lastpower" title="지난 파워"></em></div>
+      <div class="glabel"><span>POWER</span><em id="hud-live"></em><strong id="hud-pzone-t" class="pz-t" hidden></strong><b id="hud-power-t">0</b></div>
+      <div class="gauge power"><i id="hud-power"></i><s id="hud-pzone" hidden><small></small></s><u id="hud-power-head"></u><div class="ticks"></div><em id="hud-lastpower" title="지난 파워"></em></div>
       <div class="gscale"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
       <div class="glabel mv"><span>MOVE</span><b id="hud-move-t"></b></div>
       <div class="gauge move"><i id="hud-move"></i></div>
@@ -47,11 +47,33 @@
     <div class="hbtns">
       <button id="btn-emote" title="감정 표현 (7·8·9·0)">😀</button>
       <button id="btn-view" title="전체 보기 (V)">🔍</button>
+      <button id="btn-assist" class="assist-btn" title="조준 도우미 (H)" hidden><span class="ai">🎯</span><i id="assist-lv">0</i></button>
       <button id="btn-skip" title="턴 넘기기 (Tab)">⏭</button>
       <button id="btn-mute" title="소리">🔊</button>
       <button id="btn-quit" title="나가기">⏏</button>
     </div>
   </div>
+</div>
+<!-- 조준 도우미 코치 카드 (내용은 View.updateCoach 가 채움) -->
+<div id="coach" class="hidden" data-tone="info" data-level="2" data-side="c">
+  <div class="co-head">
+    <span class="co-tg" id="co-tg"><em>🎯 목표</em><b id="co-tg-n"></b></span>
+    <span class="co-btns">
+      <button id="co-tnext" type="button" title="다른 목표 (T) · 화면의 적 탱크를 눌러도 돼요">🔄 <kbd>T</kbd></button>
+      <button id="co-off" type="button" title="도우미 단계 바꾸기 (H)">🎯 <span id="co-lv">2</span><span class="co-un">단계</span> <kbd>H</kbd></button>
+    </span>
+  </div>
+  <div class="co-steps" id="co-steps">
+    <div class="co-step" id="co-s1" data-st="active"><i>1</i><span>각도</span><b id="co-s1v">–</b></div>
+    <div class="co-step" id="co-s2" data-st="todo"><i>2</i><span>힘</span><b id="co-s2v">–</b></div>
+    <div class="co-step" id="co-s3" data-st="todo"><i>3</i><span>발사</span><b>Space 떼기</b></div>
+  </div>
+  <div class="co-msg">
+    <span class="co-ic" id="co-ic">▲</span>
+    <div class="co-tx"><b id="co-text"></b><small id="co-sub"></small></div>
+    <button id="co-auto" type="button" title="추천 각도로 포신을 자동으로 맞춰요 (G)">🎯 <span>각도 자동 맞추기</span> <kbd>G</kbd></button>
+  </div>
+  <div class="co-bar" id="co-bar" hidden><i id="co-bar-fill"></i><s id="co-bar-zone"></s><u id="co-bar-mark"></u></div>
 </div>
 <!-- 상단: 턴 순서 -->
 <div id="turnbar"></div>

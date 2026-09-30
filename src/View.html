@@ -241,6 +241,7 @@ function render(dtIn) {
     ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(tl.x, tl.y); ctx.lineTo(tl.x, br.y); ctx.lineTo(br.x, br.y); ctx.lineTo(br.x, tl.y); ctx.stroke();
     drawAimGuide(ctx, t, cur);
     drawPlates(ctx, t, cur);
+    drawAssist(ctx, t, cur);
     drawOffscreen(ctx, t);
     drawWindTop(ctx, t);
     drawMinimap(ctx, t, cur);
@@ -439,6 +440,22 @@ function drawAimGuide(ctx, t, cur) {
   if (f > 0) ctx.arc(pv.x, pv.y, R, -a, 0); else ctx.arc(pv.x, pv.y, R, Math.PI, Math.PI + a);
   ctx.closePath(); ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(pv.x, pv.y, R, a0, a1); ctx.stroke();
+  // 조준 도우미: 이 각도면 맞아요 (초록 부채꼴) + 추천 각도 눈금
+  const ast = assistState(), arec = ast && ast.level >= 2 && ast.rec && ast.rec.ok && ast.rec.facing === f ? ast.rec : null;
+  if (arec) {
+    const lo = arec.aLo * Math.PI / 180, hi = arec.aHi * Math.PI / 180;
+    ctx.fillStyle = 'rgba(80,235,120,0.42)'; ctx.beginPath(); ctx.moveTo(pv.x, pv.y);
+    if (f > 0) ctx.arc(pv.x, pv.y, R, -hi, -lo); else ctx.arc(pv.x, pv.y, R, Math.PI + lo, Math.PI + hi);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#7dff9a'; ctx.lineWidth = 4; ctx.beginPath();
+    if (f > 0) ctx.arc(pv.x, pv.y, R, -hi, -lo); else ctx.arc(pv.x, pv.y, R, Math.PI + lo, Math.PI + hi);
+    ctx.stroke();
+    const ru = dir(arec.angle * Math.PI / 180);
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(pv.x + ru.x * R * 0.5, pv.y + ru.y * R * 0.5); ctx.lineTo(pv.x + ru.x * (R + 7), pv.y + ru.y * (R + 7)); ctx.stroke();
+    ctx.strokeStyle = '#b6ffc9'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.lineCap = 'butt';
+  }
   // 눈금
   for (let d = 0; d <= 90; d += 5) {
     const u = dir(d * Math.PI / 180), l = d % 30 === 0 ? 10 : d % 10 === 0 ? 6 : 3;
@@ -471,9 +488,220 @@ function drawAimGuide(ctx, t, cur) {
   }
   // 바늘 끝 각도 표시
   const lx = pv.x + u.x * (R + 24), ly = pv.y + u.y * (R + 24);
-  pill(ctx, lx - 19, ly - 10, 38, 20, 'rgba(10,14,30,0.85)', '#ffd23f');
-  txt(ctx, Math.round(cur.angle) + '°', lx, ly + 1, "14px 'Black Han Sans', sans-serif", '#ffd23f');
+  const angOk = !!(ast && ast.inAngle);
+  pill(ctx, lx - 19, ly - 10, 38, 20, angOk ? 'rgba(20,110,50,0.95)' : 'rgba(10,14,30,0.85)', angOk ? '#7dff9a' : '#ffd23f');
+  txt(ctx, Math.round(cur.angle) + '°', lx, ly + 1, "14px 'Black Han Sans', sans-serif", angOk ? '#eaffef' : '#ffd23f');
   ctx.restore();
+}
+
+
+/* ---------------- 조준 도우미 오버레이 (Assist.state 를 그림 — 계산은 Assist.html) ---------------- */
+const assistState = () => { try { const A = typeof Assist !== 'undefined' ? Assist : null; return A && A.state && A.state.active ? A.state : null; } catch (e) { return null; } };
+const turnLimit = () => (typeof RULES !== 'undefined' && RULES && RULES.turnTime) || TURN_TIME;
+
+function drawAssist(ctx, t, cur) {
+  const st = assistState();
+  if (!st || !cur || !cur.alive || G.anim || !G.ctl || cur.cpu) return;
+  const k = UI_K(), rec = st.rec;
+  ctx.save();
+  const tp = st.level >= 2 && st.target != null ? findPlayer(st.target) : null;
+  if (tp && tp.alive) drawTargetMark(ctx, t, tp, k);
+  if (st.level >= 2 && rec && rec.ok && rec.facing === cur.facing) drawGhostAngle(ctx, t, cur, rec, st, k);
+  if (st.path && st.path.length > 1) drawPredPath(ctx, t, st, k);
+  ctx.restore();
+}
+
+/** 목표: 빨간 조준선 + "🎯 목표" 이름표 */
+function drawTargetMark(ctx, t, p, k) {
+  const c = w2s(p.x, p.y - 14), R = Math.max(24, 27 * G.scale) * (1 + 0.05 * Math.sin(t * 6));
+  if (c.x < -60 || c.x > VW.aw + 60 || c.y < -60 || c.y > VW.ah + 60) return;
+  ctx.save(); ctx.translate(c.x, c.y);
+  ctx.lineCap = 'round';
+  ctx.rotate(t * 0.6);
+  for (const [col, lw] of [['rgba(0,0,0,0.6)', 6.5], ['#ff4d4d', 3.4]]) {
+    ctx.strokeStyle = col; ctx.lineWidth = lw;
+    ctx.beginPath(); ctx.arc(0, 0, R, 0.25, Math.PI / 2 - 0.25); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, R, Math.PI / 2 + 0.25, Math.PI - 0.25); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, R, Math.PI + 0.25, Math.PI * 1.5 - 0.25); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, R, Math.PI * 1.5 + 0.25, Math.PI * 2 - 0.25); ctx.stroke();
+  }
+  ctx.rotate(-t * 0.6);
+  for (const [col, lw] of [['rgba(0,0,0,0.6)', 6.5], ['#ff4d4d', 3.4]]) {
+    ctx.strokeStyle = col; ctx.lineWidth = lw;
+    ctx.beginPath();
+    for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2; ctx.moveTo(Math.cos(a) * (R - 6), Math.sin(a) * (R - 6)); ctx.lineTo(Math.cos(a) * (R + 9), Math.sin(a) * (R + 9)); }
+    ctx.stroke();
+  }
+  ctx.restore();
+  // 이름표 위에 "🎯 목표"
+  ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const top = w2s(p.x, p.y - 55 * TANK_SCALE), by = Math.max(top.y - 11 * k, 18 * k) - 30 * k;
+  const bob = Math.abs(Math.sin(t * 5)) * 3 * k, lx = clamp(top.x, 44 * k, VW.aw - 60 * k), ly = Math.max(14 * k, by - 27 * k - bob);
+  const label = '🎯 목표', fs = Math.round(15 * k);
+  ctx.font = `${fs}px 'Jua', sans-serif`;
+  const w = ctx.measureText(label).width + 18 * k;
+  pill(ctx, lx - w / 2, ly - 11 * k, w, 22 * k, '#e53935', '#fff');
+  txt(ctx, label, lx, ly + 1, `${fs}px 'Jua', sans-serif`, '#fff', 'rgba(60,0,0,0.6)', 2.5);
+  ctx.restore();
+}
+
+/** 추천 각도: 포구에서 뻗는 초록 점선 (내 포신 점선을 여기에 겹치면 딱 맞아요) */
+function drawGhostAngle(ctx, t, cur, rec, st, k) {
+  const m = muzzle(G.terrain.mask, cur, rec.angle), f = cur.facing, a = rec.angle * Math.PI / 180;
+  const s0 = w2s(m.x, m.y), u = { x: f * Math.cos(a), y: -Math.sin(a) }, L = Math.max(140, 165 * G.scale);
+  const x1 = s0.x + u.x * L, y1 = s0.y + u.y * L;
+  ctx.save(); ctx.lineCap = 'round';
+  ctx.setLineDash([10 * k, 7 * k]); ctx.lineDashOffset = -t * 28;
+  ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 6.5; ctx.beginPath(); ctx.moveTo(s0.x, s0.y); ctx.lineTo(x1, y1); ctx.stroke();
+  ctx.strokeStyle = st.inAngle ? '#b6ffc9' : '#5dff8a'; ctx.lineWidth = 3.4; ctx.stroke();
+  ctx.setLineDash([]);
+  const nx = -u.y, ny = u.x, h = 11 * k;
+  poly(ctx, [x1 + u.x * h, y1 + u.y * h, x1 + nx * h * 0.7, y1 + ny * h * 0.7, x1 - nx * h * 0.7, y1 - ny * h * 0.7]);
+  ctx.fillStyle = '#5dff8a'; ctx.strokeStyle = '#04210f'; ctx.lineWidth = 2; ctx.fill(); ctx.stroke();
+  const lx = x1 + u.x * (h + 22 * k), ly = y1 + u.y * (h + 22 * k) - 2;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const s = '추천 ' + rec.angle + '°', fs = Math.round(15 * k);
+  ctx.font = `${fs}px 'Jua', sans-serif`;
+  const w = ctx.measureText(s).width + 16 * k;
+  pill(ctx, lx - w / 2, ly - 11 * k, w, 22 * k, '#1f8f45', '#eaffef');
+  txt(ctx, s, lx, ly + 1, `${fs}px 'Jua', sans-serif`, '#fff', 'rgba(0,40,10,0.7)', 2.5);
+  ctx.restore();
+}
+
+/** 예상 궤적(점선) + 떨어질 곳(링, 폭발 반경 크기). 맞을 것 같으면 초록, 내가 맞으면 빨강 */
+function drawPredPath(ctx, t, st, k) {
+  const pts = st.path, land = st.land;
+  const good = !!(st.hit || (land && land.hitAny)), bad = !!(land && land.self);
+  const col = bad ? '255,110,110' : good ? '125,255,154' : (land && land.live) ? '255,226,122' : '255,255,255';
+  const S = pts.map(q => w2s(q[0], q[1]));
+  let total = 0;
+  for (let i = 1; i < S.length; i++) total += Math.hypot(S[i].x - S[i - 1].x, S[i].y - S[i - 1].y);
+  const gap = 15 * k, rad = 3.2 * k;
+  let next = gap - (t * 26) % gap, run = 0;
+  const live = !!(land && land.live), a0 = live ? 1 : 0.8;
+  ctx.save();
+  for (let i = 1; i < S.length; i++) {
+    const a = S[i - 1], b = S[i], dx = b.x - a.x, dy = b.y - a.y, seg = Math.hypot(dx, dy);
+    if (!seg) continue;
+    while (next <= seg) {
+      const x = a.x + dx * next / seg, y = a.y + dy * next / seg;
+      if (x > -20 && x < VW.aw + 20 && y > -20 && y < VW.ah + 20) {
+        const al = a0 * (1 - 0.45 * (run + next) / Math.max(1, total));
+        ctx.fillStyle = 'rgba(0,0,0,0.5)'; circle(ctx, x, y, rad + 1.7); ctx.fill();
+        ctx.fillStyle = `rgba(${col},${al.toFixed(3)})`; circle(ctx, x, y, rad); ctx.fill();
+      }
+      next += gap;
+    }
+    next -= seg; run += seg;
+  }
+  if (land) {
+    const c = w2s(land.x, land.y), R = Math.max(11, land.r * G.scale);
+    if (land.band) {   // 폭격/눈보라: 이 가로 범위에 떨어져요
+      const b0 = w2s(land.band.x0, land.y), b1 = w2s(land.band.x1, land.y);
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(b0.x, c.y + 4); ctx.lineTo(b1.x, c.y + 4); ctx.stroke();
+      ctx.strokeStyle = `rgba(${col},0.95)`; ctx.lineWidth = 3.5; ctx.stroke();
+      for (const bx of [b0.x, b1.x]) { ctx.beginPath(); ctx.moveTo(bx, c.y - 6); ctx.lineTo(bx, c.y + 12); ctx.stroke(); }
+    }
+    ctx.fillStyle = `rgba(${col},${good || bad ? 0.3 : 0.16})`; circle(ctx, c.x, c.y, R); ctx.fill();
+    ctx.setLineDash([7 * k, 5 * k]); ctx.lineDashOffset = -t * 22;
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 5.5; circle(ctx, c.x, c.y, R); ctx.stroke();
+    ctx.strokeStyle = `rgba(${col},1)`; ctx.lineWidth = 3; ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = `rgba(${col},1)`; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(c.x - 7, c.y); ctx.lineTo(c.x + 7, c.y); ctx.moveTo(c.x, c.y - 7); ctx.lineTo(c.x, c.y + 7); ctx.stroke();
+    const label = bad ? '⚠ 조심! 내가 맞아요' : st.hit ? '🎯 명중!' : good ? '👍 맞아요!' : '';
+    if (label) {
+      const fs = Math.round(16 * k), ly = Math.min(VW.ah - 16 * k, c.y + R + 17 * k);   // 링 아래에 (이름표와 겹치지 않게)
+      ctx.font = `${fs}px 'Jua', sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const w = ctx.measureText(label).width + 20 * k, lx = clamp(c.x, w / 2 + 6, VW.aw - w / 2 - 6);
+      pill(ctx, lx - w / 2, ly - 12 * k, w, 24 * k, bad ? '#c62828' : '#1f8f45', '#fff');
+      txt(ctx, label, lx, ly + 1, `${fs}px 'Jua', sans-serif`, '#fff', 'rgba(0,0,0,0.6)', 2.5);
+    }
+  }
+  ctx.restore();
+}
+
+/** HUD 쪽 도우미 UI: 코치 카드, 파워 게이지 초록 구간, 도우미 버튼 (Assist.state 를 읽어 그림) */
+function updateAssistUi(p, force) {
+  const A = typeof Assist !== 'undefined' ? Assist : null;
+  const st = assistState(), hud = $('#hud'), set = (id, v, fn) => { if (force || hudCache[id] !== v) { hudCache[id] = v; fn(v); } };
+  const allowed = !!(A && A.allowed && A.allowed());
+  set('asb', allowed + '|' + (A ? A.level : 0), () => {
+    const b = $('#btn-assist'); if (!b) return;
+    b.hidden = !allowed; b.classList.toggle('on', !!(A && A.level > 0));
+    $('#assist-lv').textContent = A ? A.level : 0;
+    b.title = '조준 도우미 (H): ' + ['꺼짐', '1단계 · 점선 궤적', '2단계 · 궤적 + 추천 각도·힘'][A ? A.level : 0];
+  });
+  // 파워 게이지 초록 구간
+  const rec = st && st.level >= 2 ? st.rec : null;
+  let z = null, dim = false;
+  if (rec && rec.ok) { if (st.zone) z = st.zone; else { z = { pLo: rec.pLo, pHi: rec.pHi, power: rec.power }; dim = true; } }
+  const inPw = !!(st && st.inPower);
+  set('pz', z ? [z.pLo, z.pHi, dim, inPw].join() : inPw + '', () => {
+    const el = $('#hud-pzone'), tx = $('#hud-pzone-t'), g = $('.gauge.power');
+    if (!el || !g) return;
+    hud.classList.toggle('inzone', inPw);
+    if (!z) { el.hidden = true; tx.hidden = true; return; }
+    const minPct = 9 / Math.max(60, g.clientWidth) * 100, w = Math.max(z.pHi - z.pLo, 0), mid = (z.pLo + z.pHi) / 2, ww = Math.max(w, minPct);
+    el.hidden = false; el.style.left = clamp(mid - ww / 2, 0, 100 - ww) + '%'; el.style.width = ww + '%';
+    el.classList.toggle('dim', dim); el.classList.toggle('in', inPw);
+    tx.hidden = false; tx.textContent = '🟢 ' + zoneText(z); tx.classList.toggle('dim', dim); tx.classList.toggle('in', inPw);
+  });
+  updateCoach(st, p);
+}
+
+/** 코치 카드 (DOM): 3단계 + 지금 할 일 + 미니 파워 바 */
+function updateCoach(st, p) {
+  const el = $('#coach'); if (!el) return;
+  const show = !!(st && st.level >= 1 && G.screen === 'play' && p);
+  if (!show) { if (hudCache.coach !== 'off') { hudCache.coach = 'off'; el.classList.add('hidden'); } return; }
+  const m = st.msg || {}, rec = st.rec, ok = !!(rec && rec.ok), z = st.zone || (ok ? { pLo: rec.pLo, pHi: rec.pHi, power: rec.power } : null);
+  const key = [st.level, m.tone, m.icon, m.text, m.sub, st.targetName, (st.steps || []).join(), ok ? rec.angle : '', z ? zoneText(z) : '', st.inAngle, ok].join('|');
+  if (hudCache.coach !== key) {
+    hudCache.coach = key;
+    el.classList.remove('hidden'); el.dataset.tone = m.tone || 'info'; el.dataset.level = st.level;
+    $('#co-lv').textContent = st.level; $('#co-tg-n').textContent = st.targetName || '-';
+    $('#co-ic').textContent = m.icon || ''; $('#co-text').textContent = m.text || ''; $('#co-sub').textContent = m.sub || '';
+    ['#co-s1', '#co-s2', '#co-s3'].forEach((id, i) => { $(id).dataset.st = (st.steps || [])[i] || 'todo'; });
+    $('#co-s1v').textContent = ok ? rec.angle + '°' : '–';
+    $('#co-s2v').textContent = z && ok ? zoneText(z) : '–';
+    $('#co-auto').hidden = !(st.level >= 2 && ok && !st.inAngle);
+    $('#co-bar').hidden = !(st.level >= 2 && ok && (st.inAngle || st.charging));
+    hudCache.coachSize = 0;
+  }
+  el.classList.toggle('charging', !!st.charging);
+  const bar = $('#co-bar');
+  if (!bar.hidden) {
+    const fill = $('#co-bar-fill'), zn = $('#co-bar-zone'), mk = $('#co-bar-mark');
+    const pw = clamp(st.charging ? st.power : 0, 0, 100);
+    fill.style.width = pw + '%'; fill.style.setProperty('--cbw', bar.clientWidth + 'px'); fill.style.backgroundSize = Math.max(100, bar.clientWidth) + 'px 100%';
+    mk.style.left = pw + '%';
+    if (z) { const ww = Math.max(z.pHi - z.pLo, 9 / Math.max(60, bar.clientWidth) * 100), mid = (z.pLo + z.pHi) / 2; zn.style.left = clamp(mid - ww / 2, 0, 100 - ww) + '%'; zn.style.width = ww + '%'; }
+    zn.classList.toggle('in', !!st.inPower);
+  }
+  // 위치: 탱크·조준 가이드를 가리지 않도록 가운데 → 왼쪽 → 오른쪽 중 안 겹치는 곳 (0.2초마다 점검)
+  if (G.t - (hudCache.coachT || 0) > 0.2 || !hudCache.coachSize) {
+    hudCache.coachT = G.t;
+    const cw = el.offsetWidth, ch = el.offsetHeight;
+    if (!cw) return;
+    hudCache.coachSize = cw;
+    const touch = document.body.classList.contains('touch'), aw = VW.aw, top = VW.ah - (innerHeight < 521 ? 8 : 12) - ch;
+    const xMin = touch ? 122 : 12, xMax = aw - (touch ? 142 : 12);
+    const pv = w2s(p.x, p.y - 25 * TANK_SCALE), R = Math.max(58, 62 * G.scale) + 36;
+    // 가리면 안 되는 곳: 내 탱크+조준 가이드(가장 중요), 목표 탱크+이름표, 착탄 링
+    const kos = [{ x0: pv.x - R, x1: pv.x + R, y0: pv.y - R, y1: pv.y + 44, w: 3 }];
+    const tgt = st.level >= 2 && st.target != null ? findPlayer(st.target) : null;
+    if (tgt) { const tc = w2s(tgt.x, tgt.y - 14); kos.push({ x0: tc.x - 48, x1: tc.x + 48, y0: tc.y - 95, y1: tc.y + 34, w: 3 }); }
+    if (st.land) { const lc = w2s(st.land.x, st.land.y), lr = Math.max(14, st.land.r * G.scale); kos.push({ x0: lc.x - lr, x1: lc.x + lr, y0: lc.y - lr, y1: lc.y + lr + 34, w: 1.5 }); }
+    const overlap = x => kos.reduce((sum, ko) => sum + ko.w * Math.max(0, Math.min(x + cw, ko.x1) - Math.max(x, ko.x0)) * Math.max(0, Math.min(top + ch, ko.y1) - Math.max(top, ko.y0)), 0);
+    const cand = [{ s: 'c', x: (aw - cw) / 2 }, { s: 'l', x: xMin }, { s: 'r', x: Math.max(xMin, xMax - cw) }];
+    let best = cand[0], bo = 1e12;
+    const cur = el.dataset.side;
+    for (const c of cand) { const o = overlap(c.x) - (c.s === cur ? 300 : 0); if (o < bo) { bo = o; best = c; } }   // 지금 자리를 조금 우대 (깜빡임 방지)
+    if (best.s !== cur || best.s !== 'c') { el.dataset.side = best.s; el.style.left = best.s === 'c' ? '' : best.x + 'px'; el.style.right = 'auto'; }
+    if (best.s === 'c') { el.style.left = ''; el.style.right = ''; }
+  }
 }
 
 /* ---------------- 화면 밖 표시 ---------------- */
@@ -500,7 +728,8 @@ function drawOffscreen(ctx, t) {
     const pulse = 0.75 + 0.25 * Math.sin(t * 14);
     mark(pr.x, pr.y, `rgba(255,${Math.round(80 * pulse)},60,0.95)`, pr.y < 0 ? '▲' + Math.round(-pr.y / 10) + 'm' : Math.round(Math.max(1, d / 10)) + 'm', 11);
   }
-  for (const p of G.players) if (p.alive) mark(p.x, p.y - 20, p.pc.c, '', 8);
+  const astT = assistState();
+  for (const p of G.players) if (p.alive) { const isT = !!(astT && astT.level >= 2 && astT.target === p.id); mark(p.x, p.y - 20, isT ? '#ff4d4d' : p.pc.c, isT ? '🎯' : '', isT ? 10 : 8); }
 }
 
 /* ---------------- 상단 바람 표시 ---------------- */
@@ -657,6 +886,7 @@ function tickMinis() {
 
 function updateHud(force) {
   const p = curPlayer();
+  try { updateAssistUi(p, force); } catch (e) { if (!hudCache.assistErr) { hudCache.assistErr = 1; console.error('updateAssistUi', e); } }
   if (!p) { renderTurnbar(force); return; }
   const c = G.ctl, T = TANKS[p.tank];
   const live = (!c && G.live && G.turn && G.live.actor === p.id && G.live.no === G.turn.no) ? G.live : null;
@@ -697,7 +927,7 @@ function updateHud(force) {
   const tl = Math.max(0, G.turn ? G.turn.timeLeft : 0), tc = Math.ceil(tl);
   set('timer', Math.round(tl * 4), () => {
     const el = $('#hud-timer'), ring = $('#hud-timer-rng'), busy = G.busy || !G.turn;
-    ring.style.strokeDashoffset = (169.6 * (1 - clamp(tl / TURN_TIME, 0, 1))).toFixed(1);
+    ring.style.strokeDashoffset = (169.6 * (1 - clamp(tl / turnLimit(), 0, 1))).toFixed(1);
     $('#hud-timer-t').textContent = tc;
     el.classList.toggle('warn', tc <= 5 && !busy); el.classList.toggle('mid', tc > 5 && tc <= 10 && !busy); el.classList.toggle('idle', busy);
   });
@@ -718,7 +948,8 @@ function updateHud(force) {
   set('emo', hasEmotes(), v => { $('#btn-emote').classList.toggle('none', !v); if (!v) $('#emote-pop').classList.remove('show'); });
   set('mine', canCtl, v => { hud.classList.toggle('mine', v); $('#touch').classList.toggle('active', v); });
   const tilt = G.terrain ? calcTilt(G.terrain.mask, p) : 0;
-  set('ang', Math.round(p.angle * 2) * p.facing + '|' + Math.round(tilt * 50) + '|' + p.id + '|' + (PrevAim[p.id] ? PrevAim[p.id].angle : ''), () => drawAngleDial(p));
+  const dast = assistState(), drec = dast && dast.level >= 2 && dast.rec && dast.rec.ok && dast.rec.facing === p.facing ? dast.rec : null;
+  set('ang', Math.round(p.angle * 2) * p.facing + '|' + Math.round(tilt * 50) + '|' + p.id + '|' + (PrevAim[p.id] ? PrevAim[p.id].angle : '') + '|' + (drec ? drec.aLo + '-' + drec.aHi + '-' + drec.angle : ''), () => drawAngleDial(p));
   if ((G.frameNo = (G.frameNo || 0) + 1) % 3 === 0 || force) drawPortrait(p);
   set('pbadge', [p.frozenT > 0, p.alive, moodOf(p)].join(), () => {
     const m = moodOf(p), MT = { happy: '😄 신남', sad: '😢 우울', angry: '😠 분노', smug: '😏 여유' };
@@ -860,6 +1091,17 @@ function drawAngleDial(p) {
   const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
   g.addColorStop(0, 'rgba(126,224,255,0.05)'); g.addColorStop(1, 'rgba(126,224,255,0.2)');
   ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, f > 0 ? -Math.PI / 2 : Math.PI, f > 0 ? 0 : Math.PI * 1.5); ctx.closePath(); ctx.fill();
+  // 조준 도우미: 이 각도면 맞아요 (초록 부채꼴)
+  const ast = assistState(), arec = ast && ast.level >= 2 && ast.rec && ast.rec.ok && ast.rec.facing === f ? ast.rec : null;
+  if (arec) {
+    const lo = arec.aLo * Math.PI / 180, hi = arec.aHi * Math.PI / 180;
+    ctx.fillStyle = 'rgba(80,235,120,0.55)'; ctx.beginPath(); ctx.moveTo(cx, cy);
+    if (f > 0) ctx.arc(cx, cy, r, -hi, -lo); else ctx.arc(cx, cy, r, Math.PI + lo, Math.PI + hi);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#7dff9a'; ctx.lineWidth = 3.5; ctx.beginPath();
+    if (f > 0) ctx.arc(cx, cy, r, -hi, -lo); else ctx.arc(cx, cy, r, Math.PI + lo, Math.PI + hi);
+    ctx.stroke();
+  }
   // 현재 각도 채움
   ctx.fillStyle = 'rgba(255,210,63,0.25)'; ctx.beginPath(); ctx.moveTo(cx, cy);
   const a = p.angle * Math.PI / 180;
@@ -884,6 +1126,16 @@ function drawAngleDial(p) {
     const u = dir(pa.angle);
     ctx.strokeStyle = 'rgba(126,224,255,0.8)'; ctx.lineWidth = 2; ctx.setLineDash([3, 3]);
     ctx.beginPath(); ctx.moveTo(cx + u.x * r * 0.3, cy + u.y * r * 0.3); ctx.lineTo(cx + u.x * r, cy + u.y * r); ctx.stroke(); ctx.setLineDash([]);
+  }
+  // 추천 각도: 초록 눈금 + 숫자
+  if (arec) {
+    const ru = dir(arec.angle);
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(0,0,0,0.65)'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(cx + ru.x * r * 0.45, cy + ru.y * r * 0.45); ctx.lineTo(cx + ru.x * (r + 5), cy + ru.y * (r + 5)); ctx.stroke();
+    ctx.strokeStyle = '#b6ffc9'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.font = "15px 'Black Han Sans', sans-serif"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const tx = cx + ru.x * r * 0.68, ty = cy + ru.y * r * 0.68;
+    ctx.lineWidth = 4; ctx.strokeStyle = '#04210f'; ctx.strokeText(arec.angle, tx, ty); ctx.fillStyle = '#eaffef'; ctx.fillText(arec.angle, tx, ty);
   }
   // 바늘
   const u = dir(p.angle);
@@ -937,6 +1189,12 @@ function openEmotes() {
 }
 $('#btn-emote').onclick = () => { Sound.init(); openEmotes(); };
 $('#btn-view').onclick = () => { Sound.init(); toggleFullView(); };
+/* 조준 도우미 버튼 (클릭 뒤 포커스가 남아 Space 발사 키와 겹치지 않도록 blur) */
+const assistBtn = (id, fn) => { const b = $(id); if (b) b.onclick = e => { Sound.init(); try { if (typeof Assist !== 'undefined') fn(Assist); } catch (err) { console.error(err); } if (e && e.currentTarget) e.currentTarget.blur(); updateHud(true); }; };
+assistBtn('#btn-assist', A => A.cycle());
+assistBtn('#co-off', A => A.cycle());
+assistBtn('#co-auto', A => A.autoAim());
+assistBtn('#co-tnext', A => A.nextTarget());
 
 /* ---------------- UI: 배너 / 토스트 ---------------- */
 let bannerTimer = null;
