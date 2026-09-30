@@ -3,7 +3,8 @@
  * 조준 도우미(AssistSolver) 정확도 테스트 — 순수 Node (브라우저 없음)
  *
  *   node tools/test-assist.js [맵 수=40] [--quiet]
- *   SRC_DIR=/다른/작업트리/src node tools/test-assist.js     (다른 Sim 으로 교차 검증)
+ *   node tools/test-assist.js 40 --src=/다른/작업트리/src     (다른 Core/Sim 으로 교차 검증. 환경변수 SRC_DIR 도 됨)
+ *   --brute  '풀이 불가' 판정이 진짜인지 무차별 탐색으로 확인 · DEBUG_MISS=1 빗나간 경우 실제 폭발 지점 출력
  *
  *  무작위 맵 × 무작위 위치 × 바람(일반 ±10 / 비기너 ±2 규칙) × 탱크 6종 × 무기(0,1,SS) 에 대해
  *   1) solve() 의 추천 (각도, 힘) 으로 진짜 simulateShot 을 돌려 목표가 실제로 피해를 입는지 (명중률)
@@ -13,7 +14,8 @@
  *  를 확인한다. 요구: 일반탄 계열(캐논 0/1 · 미사일 0 · 멀티/에어 0) 명중률 ≥ 95%.
  */
 const { loadSim } = require('./sim-node');
-const S = loadSim();
+const srcArg = process.argv.find(a => a.startsWith('--src='));
+const S = loadSim({ srcDir: srcArg ? srcArg.slice(6) : undefined });
 const A = S.AssistSolver;
 if (!A) { console.log('AssistSolver 를 찾을 수 없음'); process.exit(1); }
 const NMAPS = +(process.argv[2] && /^\d+$/.test(process.argv[2]) ? process.argv[2] : 40);

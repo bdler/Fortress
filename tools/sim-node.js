@@ -32,7 +32,7 @@ function shimSim(src) {
 
 function loadSim(opts) {
   opts = opts || {};
-  const dir = process.env.SRC_DIR || opts.srcDir || path.join(__dirname, '..', 'src');
+  const dir = opts.srcDir || process.env.SRC_DIR || path.join(__dirname, '..', 'src');
   const ctx = { console, Math, Date, performance: { now: () => Date.now() }, window: {}, document: { querySelector() {}, querySelectorAll() { return []; } } };
   vm.createContext(ctx);
   const strip = (f, extra) => {

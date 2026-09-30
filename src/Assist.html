@@ -109,7 +109,7 @@ const AssistSolver = (function () {
       return dx * dx + dy * dy < reach * reach;
     }, tx - 330, tx + 330, 16));
     const offs = air ? [[-180, -120, -60, 0, 60, 120, 180], [180, 120, 60, 0, -60, -120, -180]] : [[-96, -48, 0, 48, 96]];
-    const inIv = (iv, X0) => { for (const q of iv) if (X0 - jit - 2 >= q[0] && X0 + jit + 2 <= q[1]) return true; return false; };
+    const inIv = (iv, X0) => { for (const q of iv) if (X0 - jit - 4 >= q[0] && X0 + jit + 4 <= q[1]) return true; return false; };
     let best = null, cur = null;
     for (let dd = -420; dd <= 420; dd += 3) {
       const ex = tx - dd;
@@ -384,11 +384,11 @@ const AssistSolver = (function () {
     const widen = weapon.homing ? 14 : (weapon.drill || weapon.bounce) ? 2 : 1;
     let best = null, zones = 0, anyAnalytic = false;
     const shots0 = SHOTS;
-    for (let d = 0; d <= 45; d++) {
+    for (let d = 0; d <= 50; d++) {
       if (!best && SHOTS - shots0 > 380) break;   // 아무리 찾아도 없으면 (막힌 지형) 오래 붙잡지 않는다
       for (let sgn = 1; sgn >= (d ? -1 : 1); sgn -= 2) {
         const a = 50 + sgn * d;
-        if (a < 5 || a > 89) continue;
+        if (a < 0 || a > 89) continue;      // 0° (수평)까지: 절벽 아래 목표는 거의 수평으로 쏘면 맞는다
         const p0 = analytic(env, a);
         if (p0 > 2) anyAnalytic = true;
         if (p0 < 2 || p0 > 104) continue;
@@ -399,9 +399,7 @@ const AssistSolver = (function () {
           if (ap + powerPenalty(p0) - widthBonus(wEst) >= best.score) continue;
           if (zones >= 12) continue;
         }
-        const sh0 = SHOTS;
         const r = findPower(env, a, p0);
-        if (opts.debug) opts.debug.push({ a, p0: round1(p0), found: !!r, shots: SHOTS - sh0 });
         if (!r) continue;
         zones++;
         const z = powerZone(env, a, r.p), width = z.hi - z.lo, pm = round1((z.lo + z.hi) / 2);
@@ -413,7 +411,6 @@ const AssistSolver = (function () {
           self = Math.sqrt(sx * sx + sy * sy) < env.R + env.hitR + 6;
         }
         const score = anglePenalty(a) + powerPenalty(pmid) - widthBonus(width) + narrowPenalty(width) + (self ? 60 : 0);
-        if (opts.debug) opts.debug.push({ zone: a, width: round1(width), score: round1(score), shots: SHOTS - sh0, ratio: width / (env.tol * pmid / Math.max(80, Math.abs(env.aimX - muzzleAt(env.pivot, a).x))) });
         if (!best || score < best.score) best = { a, p: pmid, z, width, score, self, d: res.d };
       }
     }
@@ -491,7 +488,7 @@ const Assist = {
     msg: { step: 1, text: '', tone: 'info', icon: '', sub: '' },
     inAngle: false, inPower: false, zone: null, hit: false, steps: ['todo', 'todo', 'todo'], angle: 0, power: 0, charging: false, targetName: ''
   },
-  _sig: '', _nextT: 0, _aim: null, _wasIn: false, _zoneKey: '', _zone: null, _rec: null, _recFor: '', _busy: 0,
+  _pw: null, _picked: false, _sig: '', _nextT: 0, _aim: null, _wasIn: false, _zoneKey: '', _zone: null, _rec: null, _recFor: '', _busy: 0,
 
   /** 이 판에서 도우미를 쓸 수 있는가: 비기너 매치이거나 로컬 연습(온라인 일반 방은 공정성을 위해 금지) */
   allowed() {
@@ -519,7 +516,7 @@ const Assist = {
   _onTurn(p, ctl) {
     if (!p || !this.allowed()) { this._clear(); return; }
     if (!this.userSet) this.level = this.defaultLevel();
-    this._aim = null; this._sig = ''; this._zoneKey = ''; this._wasIn = false; this._rec = null; this._nextT = 0;
+    this._aim = null; this._sig = ''; this._zoneKey = ''; this._wasIn = false; this._rec = null; this._nextT = 0; this._picked = false; this._pw = null;
     this.target = this._nearest(p);
     if (this.level >= 2) {
       const t = this.target != null ? findPlayer(this.target) : null;
@@ -533,8 +530,8 @@ const Assist = {
   _clear() {
     const s = this.state;
     s.active = false; s.rec = null; s.path = null; s.land = null; s.zone = null; s.hit = false; s.inAngle = false; s.inPower = false; s.target = null;
-    s.level = this.level; s.charging = false;
-    this._rec = null; this._sig = ''; this._wasIn = false;
+    s.level = this.level; s.charging = false; s.slow = false;
+    this._rec = null; this._sig = ''; this._wasIn = false; this._pw = null;
   },
 
   /* ---------- 목표 ---------- */
@@ -557,7 +554,7 @@ const Assist = {
   },
   _setTarget(id) {
     if (id === this.target) return;
-    this.target = id; this._sig = ''; this._zoneKey = ''; this._nextT = 0;
+    this.target = id; this._picked = true; this._sig = ''; this._zoneKey = ''; this._nextT = 0;
     if (typeof Sound !== 'undefined' && Sound.play) Sound.play('select');
   },
   /** 화면 좌표 (클릭/탭) 로 적 탱크 고르기. 골랐으면 true */
@@ -607,7 +604,7 @@ const Assist = {
     if (this.target == null || !this._validTarget(p, this.target)) { this.target = this._nearest(p); this._sig = ''; }
     st.active = true; st.level = this.level; st.target = this.target;
     st.charging = !!c.charging;
-    const tp = this.target != null ? findPlayer(this.target) : null;
+    let tp = this.target != null ? findPlayer(this.target) : null;
     st.targetName = tp ? tp.name : '';
     const w = this._weapon(p, c);
     if (!w) { this._clear(); return; }
@@ -616,14 +613,31 @@ const Assist = {
 
     /* 1) 추천값: 입력이 바뀌었을 때만 (걷는 동안은 잠깐씩 늦춰서) */
     if (this.level >= 2 && tp) {
-      const sig = this._signature(p, c, w, tp, wind);
+      let sig = this._signature(p, c, w, tp, wind);
       if (sig !== this._sig) {
         const moving = (Input.left || Input.right) && !c.charging;
         if (!moving || G.t >= this._nextT || !this._rec) {
-          this._sig = sig; this._zoneKey = '';
+          this._zoneKey = '';
           const t0 = performance.now();
-          try { this._rec = AssistSolver.solve(mask, G.players, p, this.target, w, wind, opts); }
-          catch (e) { this._rec = null; console.error('Assist.solve', e); }
+          let r = null;
+          try { r = AssistSolver.solve(mask, G.players, p, this.target, w, wind, opts); }
+          catch (e) { r = null; console.error('Assist.solve', e); }
+          // 사람이 목표를 직접 고르지 않았는데 지금 목표를 못 맞히면 → 맞힐 수 있는 다른 적으로 자동 전환
+          if (r && !r.ok && !this._picked && r.reason !== 'mound' && r.reason !== 'notarget') {
+            const alt = this._enemies(p).filter(o => o.id !== this.target).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y));
+            for (const o of alt) {
+              let r2 = null;
+              try { r2 = AssistSolver.solve(mask, G.players, p, o.id, w, wind, { targetId: o.id }); } catch (e) { r2 = null; }
+              if (r2 && r2.ok) {
+                this._say('🎯 앞이 막혀서 ' + o.name + ' 쪽으로 목표를 바꿨어요');
+                this.target = o.id; tp = o; r = r2; st.target = o.id; st.targetName = o.name;
+                if (!c.charging && !(c.fuelUsed > 0)) p.facing = r2.facing;
+                sig = this._signature(p, c, w, o, wind);
+                break;
+              }
+            }
+          }
+          this._sig = sig; this._rec = r;
           this._busy = performance.now() - t0;
           this._nextT = G.t + Math.max(0.15, this._busy / 1000 * 8);
         }
@@ -658,6 +672,22 @@ const Assist = {
       }
     }
 
+    /* 4-a) 초록 구간이 가까워지면 힘 막대가 천천히 올라가게 (구간 반응 시간을 늘려 줌 — 로컬 입력값일 뿐 시뮬레이션과 무관) */
+    st.slow = false;
+    const spd = typeof RULES !== 'undefined' && RULES.chargeSpeed ? RULES.chargeSpeed : 52;
+    let fz = 1;      // 초록 구간 안에서의 속도 배율 (구간에 최소 ~0.32초는 머물도록 — 좁을수록 더 천천히)
+    if (st.zone) fz = clamp((st.zone.pHi - st.zone.pLo) / 0.32 / spd, 0.18, 0.6);
+    if (c.charging) {
+      if (this.level >= 2 && st.zone && st.inAngle && this._pw != null && c.power > this._pw) {
+        const lo = st.zone.pLo - 9, hi = st.zone.pHi + 2;
+        if (c.power > lo && this._pw < hi) {
+          const f = this._pw >= st.zone.pLo - 1 ? fz : Math.max(fz, 0.5);   // 구간 직전까지는 살짝, 구간에서는 확실히 천천히
+          c.power = this._pw + (c.power - this._pw) * f; st.slow = true;
+        }
+      }
+      this._pw = c.power;
+    } else this._pw = null;
+
     /* 4) 궤적 미리보기 (정수 각도, 0.1 단위 힘 — 실제 발사와 같은 값) */
     let pw = c.charging ? Math.round(c.power * 10) / 10 : 0;
     if (!c.charging) {
@@ -679,8 +709,7 @@ const Assist = {
 
     /* 5) 파워가 초록 구간에 들어온 순간 소리 */
     // '지금 놓으세요' 는 "지금 놓아도 맞는" 때만: 놓는 프레임에 힘이 한 프레임치(inc) 더 오르므로 그만큼 여유를 둔다
-    const spd = typeof RULES !== 'undefined' && RULES.chargeSpeed ? RULES.chargeSpeed : 52;
-    const inc = st.zone ? Math.min(spd * Math.min(0.05, Math.max(1 / 60, dt)), (st.zone.pHi - st.zone.pLo) * 0.35) : 0;
+    const inc = st.zone ? Math.min(spd * (st.slow ? fz : 1) * Math.min(0.05, Math.max(1 / 60, dt)), (st.zone.pHi - st.zone.pLo) * 0.35) : 0;
     st.inPower = !!(c.charging && st.inAngle && st.zone && st.hit && pw >= st.zone.pLo && pw + inc <= st.zone.pHi);
     if (st.inPower && !this._wasIn && typeof Sound !== 'undefined' && Sound.play) Sound.play('ready');
     this._wasIn = st.inPower;
@@ -718,7 +747,8 @@ const Assist = {
       st.steps[0] = 'active';
       if (rec.reason === 'mound') M(1, 'info', '🧊', '얼음벽은 세우고 싶은 곳에!', '점선 끝에 벽이 생겨요');
       else if (rec.reason === 'far') M(1, 'warn', '🚶', '가까이 가 볼까요?', '◀ ▶ 로 목표 쪽으로 움직여요');
-      else M(1, 'warn', '🚧', '앞이 막혀 있어요', '◀ ▶ 로 자리를 옮겨 볼까요?');
+      else if (rec.reason === 'roof') M(1, 'warn', '☁️', '머리 위가 막혀 있어요', '다른 무기나 다른 목표(T)는 어때요?');
+      else M(1, 'warn', '🚧', '앞이 막혀 있어요', '◀ ▶ 로 자리를 옮기거나 T 로 다른 목표!');
       return;
     }
     const dirName = rec.facing > 0 ? '오른쪽 ▶' : '◀ 왼쪽';
@@ -737,10 +767,13 @@ const Assist = {
     st.steps[0] = 'done';
     const z = st.zone, pw = c.charging ? Math.round(c.power * 10) / 10 : 0;
     const zt = zoneText(z);
-    if (!c.charging) { st.steps[1] = 'active'; M(2, 'ok', '✅', '각도 딱 맞아요!', 'Space 를 꾹 눌러 초록 구간(' + zt + ')까지!'); return; }
+    if (!c.charging) { st.steps[1] = 'active'; M(2, 'ok', '✅', '각도 딱 맞아요!', 'Space 를 꾹 눌러 초록 구간(' + zt + ')까지!' + (rec.selfRisk ? ' ⚠ 폭발이 내게도 닿아요' : '')); return; }
     if (st.inPower) { st.steps[1] = 'done'; st.steps[2] = 'active'; M(3, 'go', '🟢', '지금 놓으세요!!', 'Space 를 떼요!'); return; }
     st.steps[1] = 'active';
-    if (pw < z.pLo) M(2, 'act', '⏩', '초록 구간까지 채워요!', '지금 ' + Math.round(pw) + ' → ' + zt);
+    if (pw < z.pLo) {
+      if (st.slow) M(2, 'act', '⏳', '거의 다 왔어요! 준비~', '천천히 올라가요 · 초록 구간 ' + zt);
+      else M(2, 'act', '⏩', '초록 구간까지 채워요!', '지금 ' + Math.round(pw) + ' → ' + zt);
+    }
     else if (pw <= z.pHi) { st.steps[1] = 'done'; st.steps[2] = 'active'; M(3, 'go', '🟢', '아슬아슬! 놓아요!!', 'Space 를 떼요!'); }
     else M(2, 'bad', '⚠️', '앗, 너무 세요!', '다음엔 초록 구간(' + zt + ')에서 놓아요');
   }
