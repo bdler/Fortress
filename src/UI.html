@@ -53,7 +53,7 @@ function syncSettingsForm() {
 function openModal(id) {
   const m = $('#' + id); if (!m) return;
   if (id === 'settings') syncSettingsForm();
-  if (id === 'help') buildHelp();
+  if (id === 'help') { buildHelp(); if (G.screen === 'title' && LocalLobby.beginner) helpTab('beginner', true); }
   m.classList.add('show'); uiSound('select');
 }
 function closeModal(id) { const m = $('#' + id); if (m && m.classList.contains('show')) { m.classList.remove('show'); uiSound('click'); } }
@@ -397,6 +397,13 @@ function mapPicker(cur, editable) {
 }
 function randomTank(except) { const ids = TANK_IDS.filter(t => t !== except); return ids[Math.floor(Math.random() * ids.length)]; }
 
+/* ---------------- 비기너 모드 (로컬 설정은 localStorage 에 저장) ---------------- */
+const BEG_KEY = 'fortress_beginner';
+const BEG_DESC_ON = '폭발 커요 · 내 포탄 안전 · 각도·힘 안내';
+const BEG_DESC_OFF = '쉬운 규칙 · 각도와 힘을 알려줘요';
+function loadBeginnerPref() { try { return localStorage.getItem(BEG_KEY) === '1'; } catch (e) { return false; } }
+function saveBeginnerPref(v) { try { localStorage.setItem(BEG_KEY, v ? '1' : '0'); } catch (e) { /* 무시 */ } }
+
 /* ---------------- 로컬 로비 ---------------- */
 const LocalLobby = {
   slots: [
@@ -405,8 +412,32 @@ const LocalLobby = {
     { kind: 'cpu', name: 'CPU 3', tank: 'laser', team: 1 },
     { kind: 'none', name: '', tank: 'multi', team: 2 }
   ],
-  theme: 'random', teamMode: false
+  theme: 'random', teamMode: false, beginner: loadBeginnerPref()
 };
+
+/** 로컬 로비의 비기너 토글(체크박스 + 라벨 색/설명)을 LocalLobby.beginner 에 맞춤 */
+function syncLocalBeginner() {
+  const beg = !!LocalLobby.beginner, inp = $('#local-beginner');
+  if (inp) inp.checked = beg;
+  const box = $('#local-beg-box'); if (box) box.classList.toggle('on', beg);
+  const d = $('#local-beg-desc'); if (d) d.textContent = beg ? BEG_DESC_ON : BEG_DESC_OFF;
+}
+function setLocalBeginner(v) {
+  LocalLobby.beginner = !!v; saveBeginnerPref(LocalLobby.beginner);
+  uiSound(LocalLobby.beginner ? 'select' : 'click');
+  syncLocalBeginner();
+}
+/** 타이틀의 '🐣 비기너로 시작': 비기너 켜고 어린이용 구성(사람 1 + CPU 2, 개인전)으로 로비를 연다 */
+function beginnerQuickStart() {
+  const L = LocalLobby, S = L.slots;
+  L.beginner = true; saveBeginnerPref(true);
+  L.teamMode = false;
+  S[0].kind = 'human'; if (!S[0].name) S[0].name = '플레이어1';
+  [1, 2].forEach(i => { if (S[i].kind !== 'cpu') { S[i].kind = 'cpu'; S[i].name = 'CPU ' + (i + 1); S[i].tank = randomTank(S[0].tank); } });
+  S[3].kind = 'none';
+  renderLocalLobby(); showScreen('lobby');
+  if (typeof toast === 'function') toast('🐣 비기너 모드! 탱크를 고르고 [게임 시작]을 눌러요');
+}
 
 function renderLocalLobby() {
   const L = LocalLobby;
@@ -417,6 +448,7 @@ function renderLocalLobby() {
   }), L.teamMode)).join('');
   $('#local-maps').innerHTML = mapPicker(L.theme, true);
   $('#local-team').checked = L.teamMode;
+  syncLocalBeginner();
   paintStatic($('#scr-lobby'));
   const n = L.slots.filter(s => s.kind !== 'none').length;
   $('#local-start').disabled = n < 2;
@@ -450,7 +482,7 @@ function startLocalGame() {
     if (sides.size < 2) { toast('팀전은 최소 두 편이 필요합니다.'); return; }
   }
   uiSound('ready');
-  G.lastConfig = { players, teamMode: L.teamMode, theme: L.theme };
+  G.lastConfig = { players, teamMode: L.teamMode, theme: L.theme, beginner: !!L.beginner };
   launchLocal(G.lastConfig);
 }
 
@@ -502,7 +534,7 @@ function enterOnlineLobby(sess) {
   Online.sess = sess;
   resetMatch();
   G.attract = false; Sound.silent = false;
-  Online.lastKey = null;
+  Online.lastKey = null; Online.begPend = null;
   G.backend = new OnlineBackend(sess);
   showScreen('onlineLobby');
   $('#room-code').textContent = sess.code;
@@ -513,7 +545,10 @@ function renderOnlineLobby() {
   const B = G.backend, room = B && B.room;
   if (!room) return;
   const host = room.hostId === B.pid;
-  const key = JSON.stringify([room.players, room.theme, room.teamMode, room.hostId]);
+  let beg = !!room.beginner;
+  // 방장이 방금 바꾼 값은 서버 응답이 오기 전까지 (오래된 폴링 결과보다) 우선
+  if (host && Online.begPend && performance.now() - Online.begPend.t < 6000) beg = Online.begPend.v;
+  const key = JSON.stringify([room.players, room.theme, room.teamMode, room.hostId, beg]);
   if (key === Online.lastKey) return;
   Online.lastKey = key;
   const prev = Online.slots || [];
@@ -529,11 +564,31 @@ function renderOnlineLobby() {
   $('#on-slots').innerHTML = slots.map((s, i) => slotCard(i, s, room.teamMode)).join('');
   $('#on-maps').innerHTML = mapPicker(room.theme, host);
   $('#on-team').checked = room.teamMode; $('#on-team').disabled = !host;
+  syncOnlineBeginner(beg, host);
   $('#on-start').style.display = host ? '' : 'none';
   $('#on-start').disabled = room.players.length < 2;
   $('#on-wait').style.display = host ? 'none' : '';
   $('#on-count').textContent = room.players.length;
   paintStatic($('#scr-onlineLobby'));
+}
+
+/** 온라인 방의 비기너 표시(헤더): 방장은 토글, 나머지는 방 설정을 보여주는 읽기 전용 배지 */
+function syncOnlineBeginner(beg, host) {
+  const inp = $('#on-beginner'); if (!inp) return;
+  inp.checked = beg; inp.disabled = !host;
+  const box = $('#on-beg-box'); box.classList.toggle('on', beg); box.classList.toggle('ro', !host);
+  box.title = host ? '비기너 모드: 쉬운 규칙 + 각도·힘 안내' : '방장이 정해요';
+  $('#on-beg-desc').textContent = host ? (beg ? BEG_DESC_ON : BEG_DESC_OFF) : (beg ? '방장이 켰어요 · 쉬운 규칙' : '방장이 정해요');
+}
+async function onlineBeginnerToggle(e) {
+  const B = G.backend, room = B && B.room, v = e.target.checked;
+  if (!room || room.hostId !== B.pid) { Online.lastKey = null; renderOnlineLobby(); return; }
+  Online.begPend = { v, t: performance.now() };
+  syncOnlineBeginner(v, true);           // 즉시 반영(낙관적)
+  uiSound(v ? 'select' : 'click');
+  try { B.room = await Net.call('hostUpdate', B.code, B.pid, B.token, { beginner: v }); }
+  catch (err) { toast(err.message); }
+  Online.begPend = null; Online.lastKey = null; renderOnlineLobby();
 }
 
 async function onlineLobbyAction(e) {
@@ -612,10 +667,11 @@ function dexPilot(id, slot) {
       <p>${esc(P.desc)}</p><div class="dp-like">좋아하는 것: ${esc(P.like)}</div>
       <ul class="dp-lines">${['turn', 'hit', 'miss', 'win'].map(pick).join('')}</ul></div></div>`;
 }
-function helpTab(name) {
+function helpTab(name, quiet) {
   $$('#help-tabs .tab').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
   $$('#help .tabpane').forEach(p => p.classList.toggle('on', p.dataset.pane === name));
-  uiSound('click');
+  const tb = $('#help .tabbody'); if (tb) tb.scrollTop = 0;
+  if (!quiet) uiSound('click');
 }
 
 /* =========================================================
@@ -760,6 +816,7 @@ function showResult(ev) {
   $('#res-title').textContent = title;
   $('#res-title').style.setProperty('--tc', win.length ? (G.teamMode && win[0].team ? TEAM_COLORS[win[0].team] : win[0].pc.c) : '#cfd8e3');
   $('#res-sub').textContent = `${G.teamMode ? '팀전' : '개인전'} · ${THEMES[G.themeId] ? THEMES[G.themeId].name : ''} 맵 · ${G.players.length}인 대전`;
+  if (typeof G !== 'undefined' && G.beginner) { const bs = document.createElement('span'); bs.className = 'rs-beg'; bs.textContent = '🐣 비기너 모드'; $('#res-sub').appendChild(bs); }
   { // 우승 캐릭터의 한마디
     let q = $('#res-quote');
     if (!q) { q = document.createElement('div'); q.id = 'res-quote'; $('#res-title').insertAdjacentElement('afterend', q); }
@@ -819,6 +876,7 @@ function boot() {
   try { const n = localStorage.getItem('fortress_name'); if (n) $('#on-name').value = n; } catch (e) { }
 
   $('#btn-local').onclick = () => { Sound.init(); uiSound('select'); renderLocalLobby(); showScreen('lobby'); };
+  $('#btn-beginner').onclick = () => { Sound.init(); uiSound('select'); beginnerQuickStart(); };
   $('#btn-online').onclick = () => {
     Sound.init(); uiSound('select');
     $('#on-unavail').style.display = Net.available() ? 'none' : '';
@@ -846,6 +904,7 @@ function boot() {
   $('#local-slots').addEventListener('click', localLobbyAction);
   $('#local-maps').addEventListener('click', localLobbyAction);
   $('#local-team').onchange = e => { LocalLobby.teamMode = e.target.checked; uiSound('click'); renderLocalLobby(); };
+  $('#local-beginner').onchange = e => setLocalBeginner(e.target.checked);
   $('#local-start').onclick = () => { Sound.init(); startLocalGame(); };
   $('#on-create').onclick = onlineCreate;
   $('#on-join').onclick = onlineJoin;
@@ -854,6 +913,7 @@ function boot() {
   $('#on-slots').addEventListener('click', onlineLobbyAction);
   $('#on-maps').addEventListener('click', onlineLobbyAction);
   $('#on-team').onchange = async e => { const B = G.backend; try { B.room = await Net.call('hostUpdate', B.code, B.pid, B.token, { teamMode: e.target.checked }); Online.lastKey = null; renderOnlineLobby(); } catch (err) { toast(err.message); } };
+  $('#on-beginner').onchange = onlineBeginnerToggle;
   $('#on-start').onclick = onlineStart;
   $('#room-code').onclick = copyRoomCode;
   $('#room-copy').onclick = copyRoomCode;
