@@ -31,6 +31,7 @@
   </div>
   <div class="menu">
     <button id="btn-local" class="btn big mbtn"><span class="mi">🎮</span><span class="mt">로컬 대전<small>한 PC에서 · CPU와 함께 최대 4명</small></span></button>
+    <button id="btn-beginner" class="btn big go mbtn"><span class="mi chick">🐣</span><span class="mt">비기너로 시작<small>어린이도 쉬워요 · 각도와 힘을 알려줘요</small></span></button>
     <button id="btn-online" class="btn big alt mbtn"><span class="mi">🌐</span><span class="mt">온라인 대전<small>최대 4명 · 방 코드로 입장</small></span></button>
     <div class="menu-row">
       <button id="btn-help" class="btn sub">📖 도움말 · 도감</button>
@@ -43,7 +44,11 @@
 <!-- 로컬 로비 -->
 <section id="scr-lobby" class="screen">
   <div class="panel lobby">
-    <div class="lobby-h"><button class="btn sm btn-back">◀ 메인</button><h2><span class="h-ic">⚔</span> 로컬 대전 설정</h2><span class="lobby-tip">슬롯을 눌러 탱크를 고르세요</span></div>
+    <div class="lobby-h"><button class="btn sm btn-back">◀ 메인</button><h2><span class="h-ic">⚔</span> 로컬 대전 설정</h2>
+      <div class="lobby-r">
+        <label class="begtog" id="local-beg-box" title="쉬운 규칙 + 각도·힘 안내"><input type="checkbox" id="local-beginner"><span class="bt-sw"></span><span class="bt-t"><b>🐣 비기너 모드</b><small id="local-beg-desc">쉬운 규칙 · 각도와 힘을 알려줘요</small></span></label>
+      </div>
+    </div>
     <div class="slots" id="local-slots"></div>
     <div class="lobby-opts">
       <div class="opt"><div class="opt-l">전장 선택</div><div class="maps" id="local-maps"></div></div>
@@ -83,7 +88,9 @@
     <div class="lobby-h">
       <button class="btn sm btn-back">◀ 나가기</button>
       <div class="roomcode"><small>방 코드</small><span class="code" id="room-code" title="클릭해서 복사">----</span><button id="room-copy" class="ibtn sm" title="복사">⧉</button></div>
-      <span class="cnt"><i id="net" title="서버 연결 상태"></i><span class="cnt-l">인원</span><b id="on-count">1</b>/4</span>
+      <div class="lobby-r">
+        <label class="begtog" id="on-beg-box" title="방장이 정해요"><input type="checkbox" id="on-beginner" disabled><span class="bt-sw"></span><span class="bt-t"><b>🐣 비기너 모드</b><small id="on-beg-desc">방장이 정해요</small></span></label>
+        <span class="cnt"><i id="net" title="서버 연결 상태"></i><span class="cnt-l">인원</span><b id="on-count">1</b>/4</span></div>
     </div>
     <div class="slots" id="on-slots"></div>
     <div class="lobby-opts">
@@ -121,6 +128,7 @@
     <div class="m-h"><h2>📖 도움말</h2><button class="m-x" data-close="help" title="닫기">✕</button></div>
     <div class="tabs" id="help-tabs">
       <button class="tab on" data-tab="keys">🎮 조작법</button>
+      <button class="tab" data-tab="beginner">🐣 비기너</button>
       <button class="tab" data-tab="dex">🛡 탱크 도감</button>
       <button class="tab" data-tab="items">🎁 아이템</button>
       <button class="tab" data-tab="rules">📜 규칙</button>
@@ -140,6 +148,75 @@
           <div class="kg"><div class="kk"><kbd class="w">📱 터치</kbd></div><div class="kd"><b>모바일</b>화면 버튼으로 이동/각도/발사</div></div>
         </div>
       </div>
+      <div class="tabpane" data-pane="beginner">
+        <div class="beg">
+          <div class="beg-hero"><div class="bh-ic">🐣</div><div><b>비기너 모드</b>처음이어도 괜찮아요! 규칙은 쉽게, <em>각도</em>와 <em>힘</em>은 화면이 알려줘요.</div></div>
+          <div class="beg-fig">
+            <svg viewBox="0 0 560 256" role="img" aria-label="각도와 힘 맞추는 방법 그림">
+              <defs>
+                <linearGradient id="bgSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a8fe0"/><stop offset="1" stop-color="#9fd4ff"/></linearGradient>
+                <linearGradient id="bgPow" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3a8dff"/><stop offset=".55" stop-color="#ffd23f"/><stop offset="1" stop-color="#ff5252"/></linearGradient>
+              </defs>
+              <rect x="0" y="0" width="560" height="196" rx="14" fill="url(#bgSky)"/>
+              <path d="M0 196 V168 Q90 150 170 164 T330 170 T470 150 Q520 142 560 152 V196 Z" fill="#4fa82f"/>
+              <path d="M0 196 V184 Q140 172 280 182 T560 176 V196 Z" fill="#3b8a25"/>
+              <path d="M104 148 L170.9 87.8 A90 90 0 0 0 151.7 71.6 Z" fill="rgba(80,255,120,.5)" stroke="#2bd35e" stroke-width="2.5" stroke-linejoin="round"/>
+              <line x1="104" y1="148" x2="172" y2="70" stroke="#7dff9a" stroke-width="3.5" stroke-dasharray="8 6" stroke-linecap="round"/>
+              <line x1="104" y1="148" x2="200" y2="148" stroke="#fff" stroke-opacity=".75" stroke-width="2" stroke-dasharray="3 5"/>
+              <path d="M164 148 A60 60 0 0 0 142.6 102" fill="none" stroke="#fff" stroke-width="2.5"/>
+              <text x="172" y="136" class="fg-t fg-w">50°</text>
+              <g transform="translate(104 148) rotate(-50)"><rect x="0" y="-6" width="50" height="12" rx="6" fill="#ffd23f" stroke="#3a1700" stroke-width="3"/></g>
+              <rect x="62" y="146" width="84" height="26" rx="12" fill="#37c95b" stroke="#1d5a2a" stroke-width="3"/>
+              <ellipse cx="104" cy="146" rx="26" ry="15" fill="#5be07f" stroke="#1d5a2a" stroke-width="3"/>
+              <circle cx="96" cy="143" r="3.2" fill="#123"/><circle cx="112" cy="143" r="3.2" fill="#123"/>
+              <path d="M98 150 Q104 155 110 150" fill="none" stroke="#123" stroke-width="2.4" stroke-linecap="round"/>
+              <g fill="#ffb03a" stroke="#3a1700" stroke-width="2.5"><circle cx="76" cy="174" r="8"/><circle cx="104" cy="174" r="8"/><circle cx="132" cy="174" r="8"/></g>
+              <path d="M138 108 Q300 -88 456 148" fill="none" stroke="#fff" stroke-width="5" stroke-dasharray="1 11" stroke-linecap="round"/>
+              <g transform="translate(470 156)">
+                <circle r="30" fill="rgba(255,82,82,.18)" stroke="#ff5252" stroke-width="3" stroke-dasharray="6 5"/>
+                <rect x="-22" y="-2" width="44" height="18" rx="8" fill="#ff8a6a" stroke="#6a1a12" stroke-width="3"/>
+                <ellipse cx="0" cy="-4" rx="14" ry="9" fill="#ffab90" stroke="#6a1a12" stroke-width="3"/>
+                <g stroke="#ff2f2f" stroke-width="3.5" stroke-linecap="round"><line x1="-42" y1="-4" x2="-28" y2="-4"/><line x1="28" y1="-4" x2="42" y2="-4"/><line x1="0" y1="-46" x2="0" y2="-32"/></g>
+              </g>
+              <text x="470" y="100" class="fg-t fg-r" text-anchor="middle">🎯 목표</text>
+              <text x="86" y="52" class="fg-t fg-g" text-anchor="middle">① 각도 ▲▼</text>
+              <text x="300" y="62" class="fg-t fg-w" text-anchor="middle">점선 = 날아갈 길</text>
+              <rect x="20" y="210" width="520" height="22" rx="11" fill="#0a1024" stroke="#000" stroke-width="3"/>
+              <rect x="25" y="215" width="510" height="12" rx="6" fill="url(#bgPow)" opacity=".6"/>
+              <rect x="318" y="210" width="112" height="22" rx="7" fill="rgba(80,255,120,.38)" stroke="#2bd35e" stroke-width="3.5"/>
+              <path d="M374 206 l-8 -13 h16 z" fill="#fff" stroke="#000" stroke-width="2"/>
+              <text x="22" y="251" class="fg-t fg-d">힘 0</text>
+              <text x="374" y="251" class="fg-t fg-g" text-anchor="middle">② 초록 구간까지 Space 꾹!</text>
+              <text x="538" y="251" class="fg-t fg-d" text-anchor="end">100</text>
+            </svg>
+          </div>
+          <h3 class="beg-h">이렇게 쏘면 돼요</h3>
+          <div class="beg-steps">
+            <div class="bs"><i>1</i><div><b>각도 맞추기</b><kbd>↑</kbd><kbd>↓</kbd> 로 포신을 움직여요. <em>초록 부채꼴</em> 안에 들어오면 <span class="okc">✅ 딱 맞아요!</span> 어려우면 <kbd>G</kbd> 를 눌러요. 자동으로 맞춰줘요.</div></div>
+            <div class="bs"><i>2</i><div><b>힘 채우기</b><kbd class="w">Space</kbd> 를 꾹 누르면 힘이 차올라요. 힘 게이지의 <em>초록 구간</em>에 들어오면 &quot;지금 놓으세요!&quot;</div></div>
+            <div class="bs"><i>3</i><div><b>발사!</b><kbd class="w">Space</kbd> 에서 손을 떼면 쾅! 점선 끝의 동그라미가 포탄이 떨어질 곳이에요.</div></div>
+          </div>
+          <h3 class="beg-h">조준 도우미 키</h3>
+          <div class="beg-keys">
+            <div class="bk"><kbd>H</kbd><div><b>도우미 단계</b>끔 → 점선 → 점선+추천 각도/힘 순서로 바꿔요. 화면의 🎯 버튼도 같아요.</div></div>
+            <div class="bk"><kbd>T</kbd><div><b>목표 바꾸기</b>다른 적을 노려요. 적 탱크를 콕 눌러도 돼요.</div></div>
+            <div class="bk"><kbd>G</kbd><div><b>각도 자동 맞추기</b>포신이 추천 각도로 스르륵 움직여요.</div></div>
+          </div>
+          <h3 class="beg-h">뭐가 쉬워지나요?</h3>
+          <div class="beg-easy">
+            <div><span>💥</span>폭발이 <b>더 커요</b><small>조금 빗나가도 맞아요</small></div>
+            <div><span>🛡</span>내 포탄에 <b>내가 안 맞아요</b><small>실수해도 괜찮아요</small></div>
+            <div><span>🪂</span><b>떨어져도 안 아파요</b><small>낙하 피해 없음</small></div>
+            <div><span>🐌</span>힘이 <b>천천히</b> 차올라요<small>초록 구간에 놓기 쉬워요</small></div>
+            <div><span>⏱</span>한 턴이 <b>40초</b><small>천천히 생각해요 (기본 25초)</small></div>
+            <div><span>🍃</span>바람이 <b>아주 약해요</b><small>바람 걱정은 조금만!</small></div>
+            <div><span>🤖</span>CPU가 <b>순해요</b><small>자주 빗나가요</small></div>
+            <div><span>⚡</span>SS 게이지가 <b>빨리 차요</b><small>필살기를 더 자주!</small></div>
+            <div><span>💚</span><b>회복 아이템 2배</b><small>체력을 더 자주 채워요</small></div>
+          </div>
+          <div class="beg-note">💡 온라인 대전에서는 <b>방장</b>이 비기너 모드를 켜면 모두에게 적용돼요. 일반 온라인 방에서는 공정한 대결을 위해 조준 도우미가 꺼져 있어요. 로컬 대전(연습)에서는 비기너가 아니어도 <kbd>H</kbd> 로 도우미를 켤 수 있어요.</div>
+        </div>
+      </div>
       <div class="tabpane" data-pane="dex"><div class="dex" id="help-dex"></div></div>
       <div class="tabpane" data-pane="items"><div class="itemlist" id="help-items"></div></div>
       <div class="tabpane" data-pane="rules">
@@ -148,7 +225,7 @@
           <div class="rule"><div class="ri">⏳</div><div><b>딜레이 턴제</b>강한 무기일수록, 많이 움직일수록 다음 차례가 늦게 옵니다. 빙결 공격을 맞으면 턴이 더 밀려요.</div></div>
           <div class="rule"><div class="ri">⚡</div><div><b>SS 게이지</b>피해를 주거나 받을 때 차오릅니다. 100%가 되면 탱크마다 다른 필살기를 쓸 수 있어요.</div></div>
           <div class="rule"><div class="ri">🌊</div><div><b>풍덩!</b>물(용암)에 빠지면 바로 탈락이에요! 발밑 땅이 파이면 떨어질 수 있으니 조심하세요.</div></div>
-          <div class="rule"><div class="ri">⏱</div><div><b>턴 제한</b>한 턴은 25초. 시간이 지나면 자동으로 턴이 넘어갑니다.</div></div>
+          <div class="rule"><div class="ri">⏱</div><div><b>턴 제한</b>한 턴은 25초 (🐣 비기너 모드는 40초). 시간이 지나면 자동으로 턴이 넘어갑니다.</div></div>
           <div class="rule"><div class="ri">🏆</div><div><b>승리</b>마지막까지 살아남은 플레이어(팀전은 팀)가 승리합니다.</div></div>
         </div>
       </div>
