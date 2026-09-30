@@ -15,7 +15,9 @@
 | 아이템·이모트 | 듀얼(2연발)·파워업(데미지↑)·회복 각 1회, 말풍선 이모트 6종(온라인 실시간 전달) |
 | 무기 | 산탄, 연발 미사일, 유도 미사일, 바람 무시 플라즈마, 지형 관통 드릴, 공중 분열탄, 바운스탄, 빙결(딜레이 증가), 빙벽 생성, 위성 레이저, 폭격기 호출, 고드름 비 |
 | 맵 5종 | 초원(풍차·성) · 사막(피라미드·오아시스) · 설원(설산·오두막) · 달밤(도시 야경·오로라) · 화산(분화) — 다층 패럴랙스 배경, 새·나비·눈·반딧불·불씨, 지층·화석·보물이 박힌 지형, 매번 랜덤 생성, **픽셀 단위 지형 파괴** |
-| 규칙 | 매 턴 바뀌는 바람, 이동 게이지, 25초 제한, **딜레이 턴제**(강한 무기·많은 이동 = 늦은 차례), 낙하 데미지·물에 빠지면 풍덩 탈락, SS 게이지 |
+| 규칙 | 매 턴 바뀌는 바람, 이동 게이지, 25초 제한(비기너 40초), **딜레이 턴제**(강한 무기·많은 이동 = 늦은 차례), 낙하 데미지·물에 빠지면 풍덩 탈락, SS 게이지 |
+| 🐣 비기너 모드 | 어린이용 쉬운 규칙 — 폭발 1.3배·맞는 범위 넓음·내 포탄에 안 다침·낙하 데미지 없음·SS 1.5배 빨리 참·바람 ±2·힘 게이지 느림(30/초)·턴 40초·회복 2개·CPU가 자주 빗나감. 타이틀의 **🐣 비기너로 시작**, 로컬 로비 토글, 온라인은 방장 토글(방 전체에 적용) |
+| 🎯 조준 도우미 | 점선 예상 궤적 + **추천 각도·힘의 초록 구간**(코치 카드 1 각도 → 2 힘 → 3 발사), 목표 표시, 각도 자동 맞추기. 비기너 매치·로컬 연습에서만 켤 수 있고(온라인 일반 방은 공정성을 위해 금지) 시뮬레이션에는 영향 없음 |
 | 모드 | 로컬 대전(한 PC 2~4명, CPU 추가 가능) / 온라인 대전(방 코드 4자리, 최대 4명, 방장이 CPU 추가 가능), 개인전·팀전 |
 | 기타 | WebAudio 합성 효과음(외부 파일 없음), 모바일 터치 조작, 타이틀 화면의 CPU 데모 대전 |
 
@@ -31,6 +33,9 @@
 | `7` `8` `9` `0` | 이모트(말풍선) |
 | `V` / 마우스 휠·드래그 | 전체 맵 보기 / 줌·화면 이동 |
 | `Tab` | 턴 넘기기 |
+| `H` | 조준 도우미 단계 바꾸기 (꺼짐 → 1 궤적 → 2 궤적+추천 각도·힘) |
+| `G` | 추천 각도로 포신 자동 맞추기 |
+| `T` / 적 탱크 클릭·탭 | 조준 도우미의 목표 바꾸기 |
 
 모바일에서는 화면의 ◀ ▶ ▲ ▼ / 발사 버튼을 사용합니다.
 
@@ -44,7 +49,7 @@
 1. <https://script.google.com> → **새 프로젝트**
 2. 기본 `Code.gs` 내용을 `src/Code.gs` 로 교체
 3. **파일 추가 → HTML** 로 아래 15개를 만들고 각각 같은 이름의 `src/*.html` 내용을 붙여넣기 (확장자 없이 이름만)
-   `Index`, `Styles`, `HudStyles`, `HudMarkup`, `Core`, `Sound`, `Sim`, `Draw`, `World`, `TankArt`, `Effects`, `Game`, `View`, `UI`
+   `Index`, `Styles`, `HudStyles`, `HudMarkup`, `Core`, `Sound`, `Sim`, `Draw`, `World`, `TankArt`, `Effects`, `Game`, `Assist`, `View`, `UI`
    (파일 수가 많으니 방법 B의 clasp 를 추천합니다)
 4. (선택) 프로젝트 설정 → "appsscript.json 표시" 후 `src/appsscript.json` 내용으로 교체
 5. **배포 → 새 배포 → 유형: 웹 앱**
@@ -91,7 +96,7 @@ src/
   appsscript.json  웹앱 설정
   Index.html       화면 뼈대 + 타이틀/로비/결과/도움말 마크업 (include 로 아래 파일 삽입)
   Styles.html      메뉴·로비·결과 화면 스타일      HudStyles.html / HudMarkup.html  인게임 HUD
-  Core.html        상수, 탱크/무기/아이템/이모트 데이터
+  Core.html        상수, 탱크/무기/아이템/이모트 데이터, RULES(일반/비기너 규칙 세트)
   Sound.html       WebAudio 합성 효과음·환경음
   Sim.html         지형 생성·파괴, 포탄/탱크 물리 (결정적 시뮬레이션)
   Draw.html        공용 캔버스 헬퍼
@@ -99,6 +104,7 @@ src/
   TankArt.html     탱크 캐릭터(얼굴·표정·모자·포즈)와 얼굴 초상화
   Effects.html     포탄, 궤적, 폭발, 필살기 연출, 데미지 숫자
   Game.html        게임 진행, 턴, 입력, 아이템/이모트, CPU AI, 로컬/온라인 백엔드
+  Assist.html      조준 도우미: AssistSolver(추천 각도·힘·허용 구간, 궤적 예측 — Sim 과 같은 물리) + 코치 상태
   View.html        카메라, 미니맵, 인게임 오버레이, HUD
   UI.html          타이틀/로비/설정/도움말/결과 화면
 tools/
@@ -106,7 +112,11 @@ tools/
   gas-mock.js      Code.gs 를 Node 에서 돌리는 목(mock)
   test-online.js   브라우저 3개 + CPU 1명 온라인 대전 동기화 테스트
   smoke.js         로컬 대전 스모크 테스트
-  test-sim.js      물리 시뮬레이션 결정성 테스트 (아이템 포함)
+  test-sim.js      물리 시뮬레이션 결정성 테스트 (아이템·비기너 규칙 포함, 일반 규칙 회귀 다이제스트)
+  test-server.js   Code.gs 규칙 테스트 (비기너 방 토글·바람 범위·턴 제한 시간, 목 서버)
+  test-assist.js   AssistSolver 정확도 (추천값이 실제 시뮬레이션에서 맞는지, 초록 구간 끝 적중, 궤적 예측 일치)
+  test-kidbot.js   '어린이 봇' 종단 테스트: G·Space 만으로 비기너 12턴 (명중률 80%+), 온라인 일반 방 도우미 금지 확인
+  sim-node.js      Node 에서 Sim/Assist 를 vm 으로 불러오는 도우미 (테스트용)
   shot.js          화면별 스크린샷 도구
 dist/fortress.html 빌드 결과 (바로 열어서 플레이)
 ```
@@ -118,6 +128,10 @@ node tools/build.js                          # dist/fortress.html 재생성
 node tools/test-sim.js                       # 시뮬레이션 결정성
 NODE_PATH=$(npm root -g) node tools/smoke.js # Playwright 필요
 NODE_PATH=$(npm root -g) node tools/test-online.js
+BEGINNER=1 NODE_PATH=$(npm root -g) node tools/test-online.js   # 비기너 방
+node tools/test-server.js                    # 서버 규칙
+node tools/test-assist.js 40                 # 조준 도우미 정확도
+NODE_PATH=$(npm root -g) node tools/test-kidbot.js   # 어린이 봇 (비기너 12턴 명중률 · 온라인 도우미 허용 여부)
 ```
 
 `test-online.js` 는 `Code.gs` 를 목 서버로 띄우고 브라우저 3개(사람) + CPU 1명으로 실제 대전을 진행하면서,

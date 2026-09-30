@@ -559,10 +559,16 @@ function humanUpdate(c, p, dt) {
   if (Input.fire && !c.charging && !c.fireHeld) { c.charging = true; c.power = 0; }
   if (!Input.fire) c.fireHeld = false;
   if (c.charging) {
-    c.power += dt * RULES.chargeSpeed;
+    c.power += dt * RULES.chargeSpeed * assistChargeMul(c);
     if (Math.floor(c.power / 4) !== c.lastChg) { c.lastChg = Math.floor(c.power / 4); Sound.charge(c.power); }
     if (!Input.fire || c.power >= 100) { c.power = Math.min(100, c.power); doFire(); }
   }
+}
+
+/** 조준 도우미: 초록 구간 근처에서 힘 막대가 천천히 오르게 하는 배율 (도우미가 없거나 꺼져 있으면 1) */
+function assistChargeMul(c) {
+  try { return !assistBroken && typeof Assist !== 'undefined' && Assist && typeof Assist.chargeMul === 'function' ? Assist.chargeMul(c) : 1; }
+  catch (e) { return 1; }
 }
 
 function doFire() {

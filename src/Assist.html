@@ -488,7 +488,7 @@ const Assist = {
     msg: { step: 1, text: '', tone: 'info', icon: '', sub: '' },
     inAngle: false, inPower: false, zone: null, hit: false, steps: ['todo', 'todo', 'todo'], angle: 0, power: 0, charging: false, targetName: ''
   },
-  _pw: null, _picked: false, _sig: '', _nextT: 0, _aim: null, _wasIn: false, _zoneKey: '', _zone: null, _rec: null, _recFor: '', _busy: 0,
+  _picked: false, _sig: '', _nextT: 0, _aim: null, _wasIn: false, _zoneKey: '', _zone: null, _rec: null, _recFor: '', _busy: 0,
 
   /** 이 판에서 도우미를 쓸 수 있는가: 비기너 매치이거나 로컬 연습(온라인 일반 방은 공정성을 위해 금지) */
   allowed() {
@@ -516,7 +516,7 @@ const Assist = {
   _onTurn(p, ctl) {
     if (!p || !this.allowed()) { this._clear(); return; }
     if (!this.userSet) this.level = this.defaultLevel();
-    this._aim = null; this._sig = ''; this._zoneKey = ''; this._wasIn = false; this._rec = null; this._nextT = 0; this._picked = false; this._pw = null;
+    this._aim = null; this._sig = ''; this._zoneKey = ''; this._wasIn = false; this._rec = null; this._nextT = 0; this._picked = false;
     this.target = this._nearest(p);
     if (this.level >= 2) {
       const t = this.target != null ? findPlayer(this.target) : null;
@@ -531,7 +531,7 @@ const Assist = {
     const s = this.state;
     s.active = false; s.rec = null; s.path = null; s.land = null; s.zone = null; s.hit = false; s.inAngle = false; s.inPower = false; s.target = null;
     s.level = this.level; s.charging = false; s.slow = false;
-    this._rec = null; this._sig = ''; this._wasIn = false; this._pw = null;
+    this._rec = null; this._sig = ''; this._wasIn = false;
   },
 
   /* ---------- 목표 ---------- */
@@ -586,6 +586,21 @@ const Assist = {
     if (p.facing !== rec.facing) p.facing = rec.facing;
     this._aim = { to: rec.angle };
     if (typeof Sound !== 'undefined' && Sound.play) Sound.play('select');
+  },
+
+  /** 힘 충전 속도 배율 (Game.humanUpdate 가 매 프레임 곱함). 초록 구간 앞 12 부터 서서히 느려져 구간 안에서는 ~0.02~0.6 배.
+   *  "지금 놓으세요!!" 를 보고 손을 떼기까지 아이는 0.3~0.6초가 걸린다 → 구간 안에서 비기너 ~1초, 일반 ~0.65초 머물게 한다.
+   *  (tools/test-kidbot.js: 이전 0.32초 구간에서는 반응 0.3초 봇이 16발 모두 구간 끝을 넘겨 빗나갔다) */
+  chargeMul(c) {
+    const st = this.state, z = st.zone;
+    if (this.level < 2 || !st.active || !st.inAngle || !z || !c || !c.charging) return 1;
+    const spd = typeof RULES !== 'undefined' && RULES.chargeSpeed ? RULES.chargeSpeed : 52;
+    const dwell = typeof G !== 'undefined' && G.beginner === true ? 1.0 : 0.65;
+    const fz = clamp((z.pHi - z.pLo) / dwell / spd, 0.02, 0.6);      // 초록 구간 안에서의 배율 (좁을수록 더 천천히)
+    const pw = c.power;
+    if (pw <= z.pLo - 12 || pw >= z.pHi + 2) return 1;
+    const t = clamp((z.pLo - pw) / 12, 0, 1);                        // 구간 12 앞(1) → 구간 시작(0): 속도가 직선으로 줄어듦
+    return fz + (1 - fz) * t;
   },
 
   /* ---------- 매 프레임 (Game 루프, updateControl 직후) ---------- */
@@ -672,21 +687,11 @@ const Assist = {
       }
     }
 
-    /* 4-a) 초록 구간이 가까워지면 힘 막대가 천천히 올라가게 (구간 반응 시간을 늘려 줌 — 로컬 입력값일 뿐 시뮬레이션과 무관) */
-    st.slow = false;
+    /* 4-a) 초록 구간이 가까워지면 힘 막대가 천천히 올라가게 — 실제 감속은 Game.humanUpdate 가 Assist.chargeMul() 로 곱한다
+     *      (발사 프레임의 마지막 증가분에도 똑같이 적용되도록. 로컬 입력값일 뿐 시뮬레이션과 무관) */
     const spd = typeof RULES !== 'undefined' && RULES.chargeSpeed ? RULES.chargeSpeed : 52;
-    let fz = 1;      // 초록 구간 안에서의 속도 배율 (구간에 최소 ~0.32초는 머물도록 — 좁을수록 더 천천히)
-    if (st.zone) fz = clamp((st.zone.pHi - st.zone.pLo) / 0.32 / spd, 0.18, 0.6);
-    if (c.charging) {
-      if (this.level >= 2 && st.zone && st.inAngle && this._pw != null && c.power > this._pw) {
-        const lo = st.zone.pLo - 9, hi = st.zone.pHi + 2;
-        if (c.power > lo && this._pw < hi) {
-          const f = this._pw >= st.zone.pLo - 1 ? fz : Math.max(fz, 0.5);   // 구간 직전까지는 살짝, 구간에서는 확실히 천천히
-          c.power = this._pw + (c.power - this._pw) * f; st.slow = true;
-        }
-      }
-      this._pw = c.power;
-    } else this._pw = null;
+    const fm = c.charging ? this.chargeMul(c) : 1;
+    st.slow = fm < 1;
 
     /* 4) 궤적 미리보기 (정수 각도, 0.1 단위 힘 — 실제 발사와 같은 값) */
     let pw = c.charging ? Math.round(c.power * 10) / 10 : 0;
@@ -709,7 +714,7 @@ const Assist = {
 
     /* 5) 파워가 초록 구간에 들어온 순간 소리 */
     // '지금 놓으세요' 는 "지금 놓아도 맞는" 때만: 놓는 프레임에 힘이 한 프레임치(inc) 더 오르므로 그만큼 여유를 둔다
-    const inc = st.zone ? Math.min(spd * (st.slow ? fz : 1) * Math.min(0.05, Math.max(1 / 60, dt)), (st.zone.pHi - st.zone.pLo) * 0.35) : 0;
+    const inc = st.zone ? Math.min(spd * fm * Math.min(0.05, Math.max(1 / 60, dt)), (st.zone.pHi - st.zone.pLo) * 0.35) : 0;
     st.inPower = !!(c.charging && st.inAngle && st.zone && st.hit && pw >= st.zone.pLo && pw + inc <= st.zone.pHi);
     if (st.inPower && !this._wasIn && typeof Sound !== 'undefined' && Sound.play) Sound.play('ready');
     this._wasIn = st.inPower;
