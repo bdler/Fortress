@@ -30,6 +30,7 @@ function setupInput() {
       if (e.key === '2' || e.key === 'w' || e.key === 'W') selectWeapon(1);
       if (e.key === '3' || e.key === 'e' || e.key === 'E') selectWeapon(2);
       if (e.key === 'Tab' || e.key === 'p' || e.key === 'P') { e.preventDefault(); skipMyTurn(); }
+      if (e.key === 'Escape' && cancelCharge()) e.preventDefault();
       const ik = ['4', '5', '6'].indexOf(e.key);
       if (ik >= 0 && !e.repeat) selectItem(ITEM_IDS[ik]);
       const ek = ['7', '8', '9', '0'].indexOf(e.key);
@@ -48,6 +49,8 @@ function setupInput() {
     const off = e => { e.preventDefault(); Input[k] = false; b.classList.remove('on'); };
     b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointerleave', off); b.addEventListener('pointercancel', off);
   });
+  // 힘 채우기 취소 버튼 (터치): 발사 버튼을 누른 채 다른 손가락으로 누른다
+  $$('[data-cancel]').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); Sound.init(); cancelCharge(); }));
 }
 
 /* ---------------- 백엔드: 로컬 (한 PC에서 여럿 + CPU) ---------------- */
@@ -113,14 +116,19 @@ class OnlineBackend {
     this.since = 0; this.room = null; this.inflight = false; this.stopped = false; this.lastLive = 0; this.liveKey = '';
     this.poll();
   }
+  /** 방 정보. 다른 곳(방장의 hostUpdate 응답 등)이 B.room = ... 으로 갱신하면 세대(roomEpoch)가 올라가서,
+   *  그보다 먼저 보낸 낡은 폴링 응답이 나중에 도착해도 방 정보를 되돌리지 못한다. */
+  get room() { return this._room; }
+  set room(v) { this._room = v; this.roomEpoch = (this.roomEpoch || 0) + 1; }
   controls(p) { return p.id === this.pid || (p.cpu && this.room && this.room.hostId === this.pid); }
   isHost() { return this.room && this.room.hostId === this.pid; }
   poll() {
     if (this.stopped) return;
     if (this.inflight) return;
     this.inflight = true;
+    const epoch = this.roomEpoch;
     Net.call('poll', this.code, this.pid, this.token, this.since).then(res => {
-      this.room = res.room;
+      if (this.roomEpoch === epoch) this._room = res.room;   // 이 폴링을 보낸 뒤 방 정보가 이미 더 새 값으로 바뀌었으면 (낡은 스냅샷) 덮어쓰지 않음
       for (const ev of res.events) {
         if (ev.i !== this.since) break;
         this.since = ev.i + 1;
@@ -514,6 +522,19 @@ function selectItem(id) {
   if (id === 'dual' && TANKS[p.tank].weapons[c.weapon].ss) { Sound.play('bounce'); toast('필살기에는 듀얼을 쓸 수 없습니다.'); return; }
   if (id === 'heal' && p.hp >= p.maxHp) { Sound.play('bounce'); toast('체력이 가득 차 있습니다.'); return; }
   c.item = id; Sound.play('select'); updateHud(true);
+}
+
+/** 힘 채우기 취소: 비기너 · 로컬 연습에서만 (온라인 일반 방은 원작대로 — 떼면 발사) */
+function canCancelCharge() { return G.beginner === true || !!(G.backend && G.backend.local); }
+/** 힘을 채우는 중에 잘못 눌렀을 때 (각도가 안 맞았거나 너무 세게 채웠을 때) 발사하지 않고 처음부터. Esc / 터치 ✋ 버튼 */
+function cancelCharge() {
+  const c = G.ctl, p = curPlayer();
+  if (!c || !p || p.cpu || c.ai || c.done || !c.charging || G.busy || !canCancelCharge()) return false;
+  c.charging = false; c.power = 0; c.lastChg = -1;
+  if (Input.fire) c.fireHeld = true;           // 손가락/키를 뗄 때까지 다시 충전되지 않도록
+  Sound.play('click'); toast('✋ 취소했어요! 다시 눌러서 힘을 채워요');
+  updateHud(true);
+  return true;
 }
 
 function skipMyTurn() {

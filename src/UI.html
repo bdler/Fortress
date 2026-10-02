@@ -401,6 +401,7 @@ function randomTank(except) { const ids = TANK_IDS.filter(t => t !== except); re
 const BEG_KEY = 'fortress_beginner';
 const BEG_DESC_ON = '폭발 커요 · 내 포탄 안전 · 각도·힘 안내';
 const BEG_DESC_OFF = '쉬운 규칙 · 각도와 힘을 알려줘요';
+const BEG_TIP = '탱크를 고르고 [게임 시작 ▶] 을 눌러요';   // 타이틀의 '비기너로 시작' 으로 들어왔을 때 (토스트는 슬롯 카드 머리글을 가려서 이 자리에 고정)
 function loadBeginnerPref() { try { return localStorage.getItem(BEG_KEY) === '1'; } catch (e) { return false; } }
 function saveBeginnerPref(v) { try { localStorage.setItem(BEG_KEY, v ? '1' : '0'); } catch (e) { /* 무시 */ } }
 
@@ -420,23 +421,23 @@ function syncLocalBeginner() {
   const beg = !!LocalLobby.beginner, inp = $('#local-beginner');
   if (inp) inp.checked = beg;
   const box = $('#local-beg-box'); if (box) box.classList.toggle('on', beg);
-  const d = $('#local-beg-desc'); if (d) d.textContent = beg ? BEG_DESC_ON : BEG_DESC_OFF;
+  const d = $('#local-beg-desc'); if (d) d.textContent = beg ? (LocalLobby.tip ? BEG_TIP : BEG_DESC_ON) : BEG_DESC_OFF;
+  if (box) box.classList.toggle('tip', beg && !!LocalLobby.tip);
 }
 function setLocalBeginner(v) {
-  LocalLobby.beginner = !!v; saveBeginnerPref(LocalLobby.beginner);
+  LocalLobby.beginner = !!v; LocalLobby.tip = false; saveBeginnerPref(LocalLobby.beginner);
   uiSound(LocalLobby.beginner ? 'select' : 'click');
   syncLocalBeginner();
 }
 /** 타이틀의 '🐣 비기너로 시작': 비기너 켜고 어린이용 구성(사람 1 + CPU 2, 개인전)으로 로비를 연다 */
 function beginnerQuickStart() {
   const L = LocalLobby, S = L.slots;
-  L.beginner = true; saveBeginnerPref(true);
+  L.beginner = true; L.tip = true; saveBeginnerPref(true);
   L.teamMode = false;
   S[0].kind = 'human'; if (!S[0].name) S[0].name = '플레이어1';
   [1, 2].forEach(i => { if (S[i].kind !== 'cpu') { S[i].kind = 'cpu'; S[i].name = 'CPU ' + (i + 1); S[i].tank = randomTank(S[0].tank); } });
   S[3].kind = 'none';
   renderLocalLobby(); showScreen('lobby');
-  if (typeof toast === 'function') toast('🐣 비기너 모드! 탱크를 고르고 [게임 시작]을 눌러요');
 }
 
 function renderLocalLobby() {
@@ -458,6 +459,7 @@ function localLobbyAction(e) {
   const b = e.target.closest('[data-act],[data-map]');
   if (!b) return;
   const L = LocalLobby;
+  if (L.tip) { L.tip = false; syncLocalBeginner(); }
   if (b.dataset.map) { L.theme = b.dataset.map; uiSound('select'); renderLocalLobby(); return; }
   const i = +b.dataset.i, s = L.slots[i], act = b.dataset.act;
   if (act === 'name' || !s) return;
@@ -534,7 +536,7 @@ function enterOnlineLobby(sess) {
   Online.sess = sess;
   resetMatch();
   G.attract = false; Sound.silent = false;
-  Online.lastKey = null; Online.begPend = null;
+  Online.lastKey = null; Online.begPend = null; Online.begRun = null;
   G.backend = new OnlineBackend(sess);
   showScreen('onlineLobby');
   $('#room-code').textContent = sess.code;
@@ -547,7 +549,7 @@ function renderOnlineLobby() {
   const host = room.hostId === B.pid;
   let beg = !!room.beginner;
   // 방장이 방금 바꾼 값은 서버 응답이 오기 전까지 (오래된 폴링 결과보다) 우선
-  if (host && Online.begPend && performance.now() - Online.begPend.t < 6000) beg = Online.begPend.v;
+  if (host && Online.begPend) beg = Online.begPend.v;
   const key = JSON.stringify([room.players, room.theme, room.teamMode, room.hostId, beg]);
   if (key === Online.lastKey) return;
   Online.lastKey = key;
@@ -580,15 +582,29 @@ function syncOnlineBeginner(beg, host) {
   box.title = host ? '비기너 모드: 쉬운 규칙 + 각도·힘 안내' : '방장이 정해요';
   $('#on-beg-desc').textContent = host ? (beg ? BEG_DESC_ON : BEG_DESC_OFF) : (beg ? '방장이 켰어요 · 쉬운 규칙' : '방장이 정해요');
 }
+/** 방장의 비기너 토글은 한 번에 하나씩 서버로 보낸다 (빨리 두 번 눌러도 마지막 값이 이기도록).
+ *  게임 시작 버튼도 이 전송이 끝난 뒤에 보낸다 (순서가 뒤바뀌면 토글이 켜진 채로 일반 규칙으로 시작할 수 있다). */
 async function onlineBeginnerToggle(e) {
   const B = G.backend, room = B && B.room, v = e.target.checked;
   if (!room || room.hostId !== B.pid) { Online.lastKey = null; renderOnlineLobby(); return; }
   Online.begPend = { v, t: performance.now() };
   syncOnlineBeginner(v, true);           // 즉시 반영(낙관적)
   uiSound(v ? 'select' : 'click');
-  try { B.room = await Net.call('hostUpdate', B.code, B.pid, B.token, { beginner: v }); }
-  catch (err) { toast(err.message); }
-  Online.begPend = null; Online.lastKey = null; renderOnlineLobby();
+  if (Online.begRun) return;             // 이미 전송 중이면 값만 기억해 두면 끝난 뒤 이어서 보낸다
+  const run = Online.begRun = (async () => {
+    let sent = null;
+    try {
+      while (Online.begPend && Online.begPend.v !== sent) {
+        sent = Online.begPend.v;
+        try { B.room = await Net.call('hostUpdate', B.code, B.pid, B.token, { beginner: sent }); }
+        catch (err) { toast(err.message); break; }
+      }
+    } finally {
+      if (Online.begRun === run) { Online.begRun = null; Online.begPend = null; }
+      Online.lastKey = null; if (G.screen === 'onlineLobby') renderOnlineLobby();
+    }
+  })();
+  return run;
 }
 
 async function onlineLobbyAction(e) {
@@ -619,6 +635,7 @@ async function onlineLobbyAction(e) {
 async function onlineStart() {
   const B = G.backend;
   uiSound('ready');
+  if (Online.begRun) { try { await Online.begRun; } catch (e) { /* 토글 실패는 이미 알렸다 */ } }   // 방금 누른 비기너 토글이 서버에 반영된 다음에 시작
   try { B.room = await Net.call('startGame', B.code, B.pid, B.token); }
   catch (e) { toast(e.message); }
 }
@@ -875,7 +892,7 @@ function boot() {
   bindUiSounds();
   try { const n = localStorage.getItem('fortress_name'); if (n) $('#on-name').value = n; } catch (e) { }
 
-  $('#btn-local').onclick = () => { Sound.init(); uiSound('select'); renderLocalLobby(); showScreen('lobby'); };
+  $('#btn-local').onclick = () => { Sound.init(); uiSound('select'); LocalLobby.tip = false; renderLocalLobby(); showScreen('lobby'); };
   $('#btn-beginner').onclick = () => { Sound.init(); uiSound('select'); beginnerQuickStart(); };
   $('#btn-online').onclick = () => {
     Sound.init(); uiSound('select');
@@ -922,7 +939,15 @@ function boot() {
   $('#res-home').onclick = () => { uiSound('click'); goTitle(); };
   $('#btn-quit').onclick = () => { if (confirm('게임에서 나가시겠습니까?')) goTitle(); };
   $('#btn-mute').onclick = () => { Sound.init(); Sound.setMuted(!Sound.muted); $('#btn-mute').textContent = Sound.muted ? '🔇' : '🔊'; };
-  $('#btn-skip').onclick = skipMyTurn;
+  // 터치로 누를 때는 한 번 더 눌러야 턴이 넘어간다 (작은 버튼이라 손가락이 잘못 닿아 차례를 잃는 일 방지). 키보드 Tab/P 는 그대로.
+  let skipArm = 0, skipTimer = null;
+  $('#btn-skip').onclick = e => {
+    const touch = e && e.pointerType ? e.pointerType === 'touch' : document.body.classList.contains('touch');
+    const b = $('#btn-skip');
+    if (!touch || performance.now() - skipArm < 2500) { skipArm = 0; clearTimeout(skipTimer); b.classList.remove('arm'); skipMyTurn(); return; }
+    skipArm = performance.now(); b.classList.add('arm'); toast('⏭ 턴을 넘기려면 한 번 더 눌러요');
+    clearTimeout(skipTimer); skipTimer = setTimeout(() => { skipArm = 0; b.classList.remove('arm'); }, 2500);
+  };
   $$('#hud-weapons .wbtn').forEach((b, i) => b.onclick = () => selectWeapon(i));
   if ('ontouchstart' in window || navigator.maxTouchPoints > 0) document.body.classList.add('touch');
   $$('.ver').forEach(v => v.textContent = UI_VERSION);

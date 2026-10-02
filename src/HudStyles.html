@@ -440,4 +440,43 @@ body.touch #touch:not(.hidden) { display: flex; }
 }
 @media (max-width: 700px) and (min-height: 521px) { #coach { width: calc(100vw - 16px); } }
 body.touch .hbtns .assist-btn { width: 32px; height: 28px; }
+
+/* 터치: 키보드 글자(H·T·G) 배지는 숨기고, 버튼은 손가락 크기(44px)로 */
+body.touch #coach kbd { display: none; }
+body.touch #coach button { min-height: 44px; }
+body.touch .co-head button, body.touch #co-auto, body.touch #co-on { height: 44px; }
+/* 턴 넘기기는 도우미 버튼과 떨어뜨리고, 한 번 누르면 '한 번 더' 로 바뀐다 */
+body.touch .hbtns #btn-skip { margin-left: 8px; }
+.hbtns #btn-skip.arm { background: linear-gradient(#ffe57a, #ff9d1a); color: #3a2400; animation: assistPulse .5s ease-in-out infinite; }
+
+/* 코치 카드: 좁은 화면용 한 줄 문장(숫자 포함)과 짧은 버튼 글자 */
+.co-c, .co-s { display: none; }
+#co-on[hidden] { display: none !important; }
+/* 도우미를 꺼 둔 비기너 턴: '다시 켜기' 한 줄 */
+#coach[data-level="0"] { width: auto; max-width: min(470px, calc(100vw - 24px)); padding: 6px 10px 6px 8px; }
+#coach[data-level="0"] .co-head, #coach[data-level="0"] .co-steps, #coach[data-level="0"] #co-auto, #coach[data-level="0"] .co-bar { display: none; }
+#coach[data-level="0"] .co-ic { width: 40px; height: 40px; font-size: 24px; border-radius: 12px; }
+#coach[data-level="0"] .co-tx b { font-size: 21px; }
+#coach[data-level="0"] .co-tx small { font-size: 14px; }
+#co-on { flex: none; height: 46px; padding: 0 14px; font-size: 18px; line-height: 1.1; display: flex; align-items: center; gap: 6px; background: linear-gradient(#57d67c, #1f8f45); }
+@media (max-height: 520px) {
+  .co-c { display: block; }
+  #co-text, .co-l { display: none; }
+  .co-s { display: inline; }
+  .co-tx b.co-c { font-size: 17px; line-height: 1.1; text-shadow: 0 2px 0 #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-text-stroke: .4px #000; }
+  #co-auto span.co-s { display: inline; max-width: none; }
+  #co-auto span.co-l { display: none; }
+  #co-on { height: 32px; padding: 0 9px; font-size: 14px; }
+  #coach[data-level="0"] { grid-template-columns: 1fr; max-width: min(420px, calc(100vw - 268px)); }
+  #coach[data-level="0"] .co-msg { grid-column: 1; }
+  #coach[data-level="0"] .co-tx b.co-c { font-size: 16px; }
+  #coach[data-level="0"] .co-tx small { display: none; }
+}
+
+/* 힘 채우기 취소 (✋): 채우는 중에만 왼쪽 패드 위에 나타난다 — 발사 버튼을 누른 손과 다른 손가락으로 누른다 */
+.tpad.left { position: relative; }
+.tpad .tcancel { display: none; position: absolute; left: 0; bottom: calc(100% + 10px); width: auto; height: 46px; padding: 0 18px 0 14px; border-radius: 23px; align-items: center; gap: 6px; font-size: 22px; white-space: nowrap;
+  background: linear-gradient(#ffe57a, #ff9d1a); color: #3a2400; border-color: #000; }
+.tpad .tcancel small { font: normal 17px 'Jua', 'Black Han Sans', sans-serif; }
+#touch.charging .tcancel { display: flex; animation: assistPulse 1s ease-in-out infinite; }
 </style>

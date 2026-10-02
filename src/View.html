@@ -51,7 +51,10 @@ function followZoom() { return clamp(Math.max(1.4, VW.cover * 1.15), 1, 2.2); }
 function camClamp(x, y, z) {
   const s = VW.base * z, hw = VW.aw / 2 / s, hh = VW.ah / 2 / s;
   const ext = Cam.ext || 0;  // 탄이 맵 위로 높이 뜨면 하늘을 위로 확장
-  return { x: hw * 2 >= W ? W / 2 : clamp(x, hw, W - hw), y: hh * 2 >= H + ext ? (H - ext) / 2 : clamp(y, hh - ext, H - hh) };
+  // 조준 도우미 코치 카드가 화면 아래쪽에 앉는 동안(Cam.rsv, 화면 px)에는 맵 바닥 아래로 그만큼 더 내려갈 수 있다 →
+  // 골짜기(맵 맨 아래)에 있는 목표 탱크도 카드/HUD 위로 끌어올려 보여줄 수 있다
+  const lo = hh - ext, hi = H - hh + (Cam.rsv || 0) / s;
+  return { x: hw * 2 >= W ? W / 2 : clamp(x, hw, W - hw), y: lo > hi ? (lo + hi) / 2 : clamp(y, lo, hi) };
 }
 function applyCam() {
   const z = Cam.zoom, q = camClamp(Cam.x, Cam.y, z);
@@ -116,9 +119,17 @@ function updateCamera(dt) {
     const h = Cam.holds[Cam.holds.length - 1]; Cam.tx = h.x; Cam.ty = h.y;
   } else if (!Cam.manual) {
     const p = curPlayer();
-    if (p && p.alive) { Cam.tx = p.x + p.facing * 110; Cam.ty = p.y - 110; Cam.tz = fz; k = 2.6; }
+    if (p && p.alive) {
+      Cam.tx = p.x + p.facing * 110; Cam.ty = p.y - 110; Cam.tz = fz; k = 2.6;
+      const fr = assistFrame(p, fz, Cam.tx, Cam.ty);
+      if (fr) { Cam.tx = fr.x; Cam.ty = fr.y; Cam.tz = fr.z; }
+    }
     else if (!G.turn) { Cam.tz = Math.max(1, Cam.tz - dt * 0.3); }
   }
+  // 코치 카드 자리(화면 px)를 부드럽게 늘였다 줄였다 — 카드가 없을 땐 0 이라 기존 카메라와 똑같다
+  const rsvT = !Cam.full && !Cam.manual && !G.anim && !Cam.holds.length ? Math.max(0, VW.coachRsv || 0) : 0;
+  Cam.rsv = lerp(Cam.rsv || 0, rsvT, 1 - Math.exp(-6 * dt));
+  if (Cam.rsv < 0.5 && rsvT === 0) Cam.rsv = 0;
   // 부드럽게 따라가기 (배율은 로그 공간)
   const a = 1 - Math.exp(-k * dt), az = 1 - Math.exp(-kz * dt);
   const tq = camClamp(Cam.tx, Cam.ty, Cam.tz);
@@ -127,6 +138,43 @@ function updateCamera(dt) {
     Cam.x = lerp(Cam.x, tq.x, a); Cam.y = lerp(Cam.y, tq.y, a);
   }
   applyCam();
+}
+/** 조준 도우미가 켜진 내 차례: 내 탱크 + 목표 탱크(이름표 포함)가 HUD 와 코치 카드에 가려지지 않도록 카메라를 잡는다.
+ *  기본 추적 화면에서 이미 다 보이면 그대로 두고, 안 보일 때만 필요한 만큼 (위로 밀기 → 그래도 안 되면 축소) 움직인다.
+ *  화면 여백은 px(줌과 무관), 탱크 위치는 월드 좌표. 반환 {x, y, z} (없으면 null) */
+function assistFrame(p, fz, dx, dy) {
+  const st = assistState(), c = G.ctl;
+  if (!st || st.level < 1 || !c || c.ai || c.done || c.pid !== p.id) return null;
+  const k = UI_K(), TS = TANK_SCALE, aw = VW.aw, ah = VW.ah;
+  const top = 8, bot = ah - (VW.coachRsv || 0) - 4, left = 14, right = aw - 14;
+  const pts = [
+    { x: p.x, y: p.y - 45 * TS, up: 64 * k, dn: 0, sd: 46 * k },       // 내 탱크 꼭대기 + 이름표
+    { x: p.x, y: p.y + 6, up: 0, dn: 6, sd: 46 * k }                    // 내 탱크 바닥
+  ];
+  const tp = st.level >= 2 && st.target != null ? findPlayer(st.target) : null;
+  if (tp && tp.alive && !tp.sunk) {
+    pts.push({ x: tp.x, y: tp.y - 45 * TS, up: 104 * k, dn: 0, sd: 52 * k });   // 목표: 이름표 + '🎯 목표' 딱지
+    pts.push({ x: tp.x, y: tp.y + 6, up: 0, dn: 12, sd: 52 * k });
+  }
+  // 배율 z 에서 모든 점이 안전 영역 [left..right] x [top..bot] 안에 들어오는 카메라 중심 구간 (x: [xl, xu], y: [yl, yu])
+  const solve = z => {
+    const s = VW.base * z; let xl = -1e9, xu = 1e9, yl = -1e9, yu = 1e9;
+    for (const q of pts) {
+      xu = Math.min(xu, q.x - (left + q.sd - aw / 2) / s); xl = Math.max(xl, q.x + (q.sd - right + aw / 2) / s);
+      yu = Math.min(yu, q.y - (top + q.up - ah / 2) / s);  yl = Math.max(yl, q.y + (q.dn - bot + ah / 2) / s);
+    }
+    return { xl, xu, yl, yu, ok: xl <= xu && yl <= yu };
+  };
+  let z = fz, sol = solve(z);
+  if (!sol.ok) {
+    // 가장 큰(=가까운) 배율을 이분 탐색: 아래 zMin 까지 줄여도 안 되면 zMin 에서 가운데로
+    const zMin = 0.8;
+    let lo = zMin, hi = fz;
+    if (!solve(lo).ok) { z = lo; sol = solve(lo); }
+    else { for (let i = 0; i < 9; i++) { const m = (lo + hi) / 2; if (solve(m).ok) lo = m; else hi = m; } z = lo; sol = solve(z); }
+  }
+  const pick = (want, l, u) => l <= u ? clamp(want, l, u) : (l + u) / 2;
+  return { x: pick(dx, sol.xl, sol.xu), y: pick(dy, sol.yl, sol.yu), z };
 }
 function camManual() { Cam.manual = true; Cam.full = false; Cam.tx = Cam.x; Cam.ty = Cam.y; Cam.tz = Cam.zoom; Cam.holds = []; syncViewBtn(); }
 function toggleFullView() {
@@ -612,7 +660,8 @@ function drawPredPath(ctx, t, st, k) {
     ctx.beginPath(); ctx.moveTo(c.x - 7, c.y); ctx.lineTo(c.x + 7, c.y); ctx.moveTo(c.x, c.y - 7); ctx.lineTo(c.x, c.y + 7); ctx.stroke();
     const label = bad ? '⚠ 조심! 내가 맞아요' : st.hit ? '🎯 명중!' : good ? '👍 맞아요!' : '';
     if (label) {
-      const fs = Math.round(16 * k), ly = Math.min(VW.ah - 16 * k, c.y + R + 17 * k);   // 링 아래에 (이름표와 겹치지 않게)
+      // 링 아래에 (이름표와 겹치지 않게). 코치 카드/HUD 띠 아래로 내려가 가려지지 않도록 그 위에서 멈춘다
+      const fs = Math.round(16 * k), safeB = VW.ah - Math.max(30 * k, (Cam.rsv || 0) + 8), ly = Math.min(safeB - 12 * k, c.y + R + 17 * k);
       ctx.font = `${fs}px 'Jua', sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       const w = ctx.measureText(label).width + 20 * k, lx = clamp(c.x, w / 2 + 6, VW.aw - w / 2 - 6);
       pill(ctx, lx - w / 2, ly - 12 * k, w, 24 * k, bad ? '#c62828' : '#1f8f45', '#fff');
@@ -651,56 +700,87 @@ function updateAssistUi(p, force) {
   updateCoach(st, p);
 }
 
-/** 코치 카드 (DOM): 3단계 + 지금 할 일 + 미니 파워 바 */
+/** 코치 카드 (DOM): 3단계 + 지금 할 일 + 미니 파워 바 (도우미를 끈 비기너 턴에는 '다시 켜기' 한 줄) */
 function updateCoach(st, p) {
   const el = $('#coach'); if (!el) return;
-  const show = !!(st && st.level >= 1 && G.screen === 'play' && p);
-  if (!show) { if (hudCache.coach !== 'off') { hudCache.coach = 'off'; el.classList.add('hidden'); } return; }
-  const m = st.msg || {}, rec = st.rec, ok = !!(rec && rec.ok), z = st.zone || (ok ? { pLo: rec.pLo, pHi: rec.pHi, power: rec.power } : null);
-  const key = [st.level, m.tone, m.icon, m.text, m.sub, st.targetName, (st.steps || []).join(), ok ? rec.angle : '', z ? zoneText(z) : '', st.inAngle, ok].join('|');
-  if (hudCache.coach !== key) {
-    hudCache.coach = key;
-    el.classList.remove('hidden'); el.dataset.tone = m.tone || 'info'; el.dataset.level = st.level;
-    $('#co-lv').textContent = st.level; $('#co-tg-n').textContent = st.targetName || '-';
-    $('#co-ic').textContent = m.icon || ''; $('#co-text').textContent = m.text || ''; $('#co-sub').textContent = m.sub || '';
-    ['#co-s1', '#co-s2', '#co-s3'].forEach((id, i) => { $(id).dataset.st = (st.steps || [])[i] || 'todo'; });
-    $('#co-s1v').textContent = ok ? rec.angle + '°' : '–';
-    $('#co-s2v').textContent = z && ok ? zoneText(z) : '–';
-    $('#co-auto').hidden = !(st.level >= 2 && ok && !st.inAngle);
-    $('#co-bar').hidden = !(st.level >= 2 && ok && (st.inAngle || st.charging));
-    hudCache.coachSize = 0;
-  }
-  el.classList.toggle('charging', !!st.charging);
-  const bar = $('#co-bar');
-  if (!bar.hidden) {
-    const fill = $('#co-bar-fill'), zn = $('#co-bar-zone'), mk = $('#co-bar-mark');
-    const pw = clamp(st.charging ? st.power : 0, 0, 100);
-    fill.style.width = pw + '%'; fill.style.setProperty('--cbw', bar.clientWidth + 'px'); fill.style.backgroundSize = Math.max(100, bar.clientWidth) + 'px 100%';
-    mk.style.left = pw + '%';
-    if (z) { const ww = Math.max(z.pHi - z.pLo, 9 / Math.max(60, bar.clientWidth) * 100), mid = (z.pLo + z.pHi) / 2; zn.style.left = clamp(mid - ww / 2, 0, 100 - ww) + '%'; zn.style.width = ww + '%'; }
-    zn.classList.toggle('in', !!st.inPower);
+  const A = typeof Assist !== 'undefined' ? Assist : null, raw = A && A.state;
+  const offHint = !!(!st && raw && raw.offHint && G.screen === 'play' && p);
+  const show = !!((st && st.level >= 1 && G.screen === 'play' && p) || offHint);
+  const touch = document.body.classList.contains('touch');
+  if (!show) { VW.coachRsv = 0; if (hudCache.coach !== 'off') { hudCache.coach = 'off'; el.classList.add('hidden'); } return; }
+  const set$ = (id, v) => { const e = $(id); if (e) e.textContent = v; };
+  if (offHint) {
+    const key = 'off|' + touch;
+    if (hudCache.coach !== key) {
+      hudCache.coach = key;
+      el.classList.remove('hidden'); el.dataset.tone = 'info'; el.dataset.level = '0';
+      set$('#co-ic', '🎯'); set$('#co-text', '조준 도우미가 꺼졌어요'); set$('#co-ctext', '도우미가 꺼졌어요');
+      set$('#co-sub', touch ? '켜기 버튼이나 아래쪽 🎯 버튼으로 다시 켜요' : 'H 키나 켜기 버튼으로 다시 켜요');
+      $('#co-on').hidden = false; $('#co-auto').hidden = true; $('#co-bar').hidden = true;
+      hudCache.coachSize = 0;
+    }
+    el.classList.remove('charging');
+  } else {
+    const m = st.msg || {}, rec = st.rec, ok = !!(rec && rec.ok), z = st.zone || (ok ? { pLo: rec.pLo, pHi: rec.pHi, power: rec.power } : null);
+    const key = [st.level, m.tone, m.icon, m.text, m.sub, m.c, st.targetName, (st.steps || []).join(), ok ? rec.angle : '', z ? zoneText(z) : '', st.inAngle, ok, touch].join('|');
+    if (hudCache.coach !== key) {
+      hudCache.coach = key;
+      el.classList.remove('hidden'); el.dataset.tone = m.tone || 'info'; el.dataset.level = st.level;
+      set$('#co-lv', st.level); set$('#co-tg-n', st.targetName || '-');
+      set$('#co-ic', m.icon || ''); set$('#co-text', m.text || ''); set$('#co-ctext', m.c || m.text || ''); set$('#co-sub', m.sub || '');
+      ['#co-s1', '#co-s2', '#co-s3'].forEach((id, i) => { $(id).dataset.st = (st.steps || [])[i] || 'todo'; });
+      set$('#co-s1v', ok ? rec.angle + '°' : '–');
+      set$('#co-s2v', z && ok ? zoneText(z) : '–');
+      $('#co-on').hidden = true;
+      $('#co-auto').hidden = !(st.level >= 2 && ok && !st.inAngle);
+      $('#co-bar').hidden = !(st.level >= 2 && ok && (st.inAngle || st.charging));
+      hudCache.coachSize = 0;
+    }
+    el.classList.toggle('charging', !!st.charging);
+    const bar = $('#co-bar');
+    if (!bar.hidden) {
+      const z = st.zone || (st.rec && st.rec.ok ? { pLo: st.rec.pLo, pHi: st.rec.pHi, power: st.rec.power } : null);
+      const fill = $('#co-bar-fill'), zn = $('#co-bar-zone'), mk = $('#co-bar-mark');
+      const pw = clamp(st.charging ? st.power : 0, 0, 100);
+      fill.style.width = pw + '%'; fill.style.setProperty('--cbw', bar.clientWidth + 'px'); fill.style.backgroundSize = Math.max(100, bar.clientWidth) + 'px 100%';
+      mk.style.left = pw + '%';
+      if (z) { const ww = Math.max(z.pHi - z.pLo, 9 / Math.max(60, bar.clientWidth) * 100), mid = (z.pLo + z.pHi) / 2; zn.style.left = clamp(mid - ww / 2, 0, 100 - ww) + '%'; zn.style.width = ww + '%'; }
+      zn.classList.toggle('in', !!st.inPower);
+    }
   }
   // 위치: 탱크·조준 가이드를 가리지 않도록 가운데 → 왼쪽 → 오른쪽 중 안 겹치는 곳 (0.2초마다 점검)
   if (G.t - (hudCache.coachT || 0) > 0.2 || !hudCache.coachSize) {
     hudCache.coachT = G.t;
+    const aw = VW.aw;
+    // 터치 화면: 화살표/발사 패드의 실제 위치(DOM)를 피한다 — 패드 크기는 화면마다 다르다
+    let xMin = 12, xMax = aw - 12;
+    if (touch) {
+      const pl = $('#touch .tpad.left'), pr = $('#touch .tpad.right');
+      const a = pl && pl.getBoundingClientRect(), b = pr && pr.getBoundingClientRect();
+      if (a && a.width) xMin = Math.max(xMin, a.right + 8);
+      if (b && b.width) xMax = Math.min(xMax, b.left - 8);
+    }
+    el.style.maxWidth = touch && xMax - xMin > 260 ? (xMax - xMin) + 'px' : '';
     const cw = el.offsetWidth, ch = el.offsetHeight;
     if (!cw) return;
     hudCache.coachSize = cw;
-    const touch = document.body.classList.contains('touch'), aw = VW.aw, top = VW.ah - (innerHeight < 521 ? 8 : 12) - ch;
-    const xMin = touch ? 122 : 12, xMax = aw - (touch ? 142 : 12);
+    const low = innerHeight < 521, bottomGap = low ? 8 : 12, top = VW.ah - bottomGap - ch;
+    // 카메라(View.assistFrame)에 알려주는 카드 자리: 카드 높이 + 바닥 여백 + 아직 안 보이는 파워 바(22px) 몫 — 카드가 커졌다 작아져도 화면이 흔들리지 않게
+    VW.coachRsv = offHint ? 0 : ch + bottomGap + 12 + ($('#co-bar').hidden && el.dataset.level === '2' ? 22 : 0);
     const pv = w2s(p.x, p.y - 25 * TANK_SCALE), R = Math.max(58, 62 * G.scale) + 36;
     // 가리면 안 되는 곳: 내 탱크+조준 가이드(가장 중요), 목표 탱크+이름표, 착탄 링
     const kos = [{ x0: pv.x - R, x1: pv.x + R, y0: pv.y - R, y1: pv.y + 44, w: 3 }];
-    const tgt = st.level >= 2 && st.target != null ? findPlayer(st.target) : null;
+    const tgt = st && st.level >= 2 && st.target != null ? findPlayer(st.target) : null;
     if (tgt) { const tc = w2s(tgt.x, tgt.y - 14); kos.push({ x0: tc.x - 48, x1: tc.x + 48, y0: tc.y - 95, y1: tc.y + 34, w: 3 }); }
-    if (st.land) { const lc = w2s(st.land.x, st.land.y), lr = Math.max(14, st.land.r * G.scale); kos.push({ x0: lc.x - lr, x1: lc.x + lr, y0: lc.y - lr, y1: lc.y + lr + 34, w: 1.5 }); }
+    if (st && st.land) { const lc = w2s(st.land.x, st.land.y), lr = Math.max(14, st.land.r * G.scale); kos.push({ x0: lc.x - lr, x1: lc.x + lr, y0: lc.y - lr, y1: lc.y + lr + 34, w: 1.5 }); }
     const overlap = x => kos.reduce((sum, ko) => sum + ko.w * Math.max(0, Math.min(x + cw, ko.x1) - Math.max(x, ko.x0)) * Math.max(0, Math.min(top + ch, ko.y1) - Math.max(top, ko.y0)), 0);
-    const cand = [{ s: 'c', x: (aw - cw) / 2 }, { s: 'l', x: xMin }, { s: 'r', x: Math.max(xMin, xMax - cw) }];
+    const cand = [{ s: 'c', x: clamp((aw - cw) / 2, xMin, Math.max(xMin, xMax - cw)) }, { s: 'l', x: xMin }, { s: 'r', x: Math.max(xMin, xMax - cw) }];
     let best = cand[0], bo = 1e12;
     const cur = el.dataset.side;
     for (const c of cand) { const o = overlap(c.x) - (c.s === cur ? 300 : 0); if (o < bo) { bo = o; best = c; } }   // 지금 자리를 조금 우대 (깜빡임 방지)
-    if (best.s !== cur || best.s !== 'c') { el.dataset.side = best.s; el.style.left = best.s === 'c' ? '' : best.x + 'px'; el.style.right = 'auto'; }
-    if (best.s === 'c') { el.style.left = ''; el.style.right = ''; }
+    const centered = best.s === 'c' && Math.abs(best.x - (aw - cw) / 2) < 1;
+    el.dataset.side = best.s === 'c' && !centered ? 'l' : best.s;    // 가운데가 패드에 걸려 옮긴 자리는 transform 없는 'l' 스타일로
+    if (centered) { el.style.left = ''; el.style.right = ''; } else { el.style.left = best.x + 'px'; el.style.right = 'auto'; }
   }
 }
 
@@ -947,6 +1027,8 @@ function updateHud(force) {
   set('items', hasItems() ? JSON.stringify([p.id, p.items || null, item, canCtl]) : '', () => renderItems(p, item, canCtl));
   set('emo', hasEmotes(), v => { $('#btn-emote').classList.toggle('none', !v); if (!v) $('#emote-pop').classList.remove('show'); });
   set('mine', canCtl, v => { hud.classList.toggle('mine', v); $('#touch').classList.toggle('active', v); });
+  // 터치 ✋ 취소 버튼은 내가 힘을 채우는 동안(취소할 수 있는 판)에만
+  set('tcancel', !!(canCtl && c && c.charging && typeof canCancelCharge === 'function' && canCancelCharge()), v => $('#touch').classList.toggle('charging', v));
   const tilt = G.terrain ? calcTilt(G.terrain.mask, p) : 0;
   const dast = assistState(), drec = dast && dast.level >= 2 && dast.rec && dast.rec.ok && dast.rec.facing === p.facing ? dast.rec : null;
   set('ang', Math.round(p.angle * 2) * p.facing + '|' + Math.round(tilt * 50) + '|' + p.id + '|' + (PrevAim[p.id] ? PrevAim[p.id].angle : '') + '|' + (drec ? drec.aLo + '-' + drec.aHi + '-' + drec.angle : ''), () => drawAngleDial(p));
@@ -1195,6 +1277,7 @@ assistBtn('#btn-assist', A => A.cycle());
 assistBtn('#co-off', A => A.cycle());
 assistBtn('#co-auto', A => A.autoAim());
 assistBtn('#co-tnext', A => A.nextTarget());
+assistBtn('#co-on', A => A.setLevel(2));
 
 /* ---------------- UI: 배너 / 토스트 ---------------- */
 let bannerTimer = null;

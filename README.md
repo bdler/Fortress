@@ -36,8 +36,9 @@
 | `H` | 조준 도우미 단계 바꾸기 (꺼짐 → 1 궤적 → 2 궤적+추천 각도·힘) |
 | `G` | 추천 각도로 포신 자동 맞추기 |
 | `T` / 적 탱크 클릭·탭 | 조준 도우미의 목표 바꾸기 |
+| `Esc` | 힘 채우는 중 취소 (비기너 · 로컬 연습만 — 잘못 눌렀을 때 발사하지 않고 처음부터) |
 
-모바일에서는 화면의 ◀ ▶ ▲ ▼ / 발사 버튼을 사용합니다.
+모바일에서는 화면의 ◀ ▶ ▲ ▼ / 발사 버튼을 사용합니다 (조준 도우미는 🎯 버튼과 코치 카드의 🎯 자동 · 🔄 목표 버튼, 힘 채우는 중 취소는 ✋ 버튼).
 
 ## 바로 해보기 (설치 없이, 로컬 대전)
 
@@ -115,6 +116,7 @@ tools/
   test-sim.js      물리 시뮬레이션 결정성 테스트 (아이템·비기너 규칙 포함, 일반 규칙 회귀 다이제스트)
   test-server.js   Code.gs 규칙 테스트 (비기너 방 토글·바람 범위·턴 제한 시간, 목 서버)
   test-assist.js   AssistSolver 정확도 (추천값이 실제 시뮬레이션에서 맞는지, 초록 구간 끝 적중, 궤적 예측 일치)
+  test-lobby-race.js  온라인 로비 경쟁 상태 (비기너 토글 직후 시작 · 낡은 poll 응답 · 빠른 연타) — 지연을 직접 조절한 목 서버
   test-kidbot.js   '어린이 봇' 종단 테스트: G·Space 만으로 비기너 12턴 (명중률 80%+), 온라인 일반 방 도우미 금지 확인
   sim-node.js      Node 에서 Sim/Assist 를 vm 으로 불러오는 도우미 (테스트용)
   shot.js          화면별 스크린샷 도구
@@ -130,6 +132,7 @@ NODE_PATH=$(npm root -g) node tools/smoke.js # Playwright 필요
 NODE_PATH=$(npm root -g) node tools/test-online.js
 BEGINNER=1 NODE_PATH=$(npm root -g) node tools/test-online.js   # 비기너 방
 node tools/test-server.js                    # 서버 규칙
+NODE_PATH=$(npm root -g) node tools/test-lobby-race.js   # 온라인 로비 경쟁 상태 (비기너 토글)
 node tools/test-assist.js 40                 # 조준 도우미 정확도
 NODE_PATH=$(npm root -g) node tools/test-kidbot.js   # 어린이 봇 (비기너 12턴 명중률 · 온라인 도우미 허용 여부)
 ```

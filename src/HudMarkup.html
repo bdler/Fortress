@@ -5,7 +5,7 @@
 
 <!-- 모바일 터치 조작 -->
 <div id="touch" class="hidden">
-  <div class="tpad left"><button data-touch="left">◀</button><button data-touch="right">▶</button></div>
+  <div class="tpad left"><button data-touch="left">◀</button><button data-touch="right">▶</button><button data-cancel class="tcancel" type="button" title="힘 채우기 취소 (Esc)">✋<small>취소</small></button></div>
   <div class="tpad right"><div class="updown"><button data-touch="up">▲</button><button data-touch="down">▼</button></div><button data-touch="fire" class="fire">발사</button></div>
 </div>
 
@@ -45,11 +45,11 @@
       <b id="hud-timer-t">25</b>
     </div>
     <div class="hbtns">
+      <button id="btn-assist" class="assist-btn" title="조준 도우미 (H)" hidden><span class="ai">🎯</span><i id="assist-lv">0</i></button>
       <button id="btn-emote" title="감정 표현 (7·8·9·0)">😀</button>
       <button id="btn-view" title="전체 보기 (V)">🔍</button>
-      <button id="btn-assist" class="assist-btn" title="조준 도우미 (H)" hidden><span class="ai">🎯</span><i id="assist-lv">0</i></button>
-      <button id="btn-skip" title="턴 넘기기 (Tab)">⏭</button>
       <button id="btn-mute" title="소리">🔊</button>
+      <button id="btn-skip" title="턴 넘기기 (Tab)">⏭</button>
       <button id="btn-quit" title="나가기">⏏</button>
     </div>
   </div>
@@ -66,12 +66,13 @@
   <div class="co-steps" id="co-steps">
     <div class="co-step" id="co-s1" data-st="active"><i>1</i><span>각도</span><b id="co-s1v">–</b></div>
     <div class="co-step" id="co-s2" data-st="todo"><i>2</i><span>힘</span><b id="co-s2v">–</b></div>
-    <div class="co-step" id="co-s3" data-st="todo"><i>3</i><span>발사</span><b>Space 떼기</b></div>
+    <div class="co-step" id="co-s3" data-st="todo"><i>3</i><span>발사</span><b><span class="k-only">Space 떼기</span><span class="t-only">손 떼기</span></b></div>
   </div>
   <div class="co-msg">
     <span class="co-ic" id="co-ic">▲</span>
-    <div class="co-tx"><b id="co-text"></b><small id="co-sub"></small></div>
-    <button id="co-auto" type="button" title="추천 각도로 포신을 자동으로 맞춰요 (G)">🎯 <span>각도 자동 맞추기</span> <kbd>G</kbd></button>
+    <div class="co-tx"><b id="co-text"></b><b id="co-ctext" class="co-c"></b><small id="co-sub"></small></div>
+    <button id="co-auto" type="button" title="추천 각도로 포신을 자동으로 맞춰요 (G)">🎯 <span class="co-l">각도 자동 맞추기</span><span class="co-s">자동</span> <kbd>G</kbd></button>
+    <button id="co-on" type="button" title="조준 도우미 켜기 (H)" hidden>🎯 <span>켜기</span> <kbd>H</kbd></button>
   </div>
   <div class="co-bar" id="co-bar" hidden><i id="co-bar-fill"></i><s id="co-bar-zone"></s><u id="co-bar-mark"></u></div>
 </div>

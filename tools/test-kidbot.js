@@ -6,13 +6,15 @@
  *      - 추천 (각도, 힘) 과 초록 구간 표본을 '이 화면의 실제 simulateShot' 으로 다시 쏴 보고 목표를 맞히는지 (>= 95 %)
  *   2) 일반 규칙 로컬 매치 + 도우미 2단계(H H): 같은 방식으로 NORMAL_TURNS 번 (추천을 받은 발사 기준 >= 80 %, 전체 명중률은 참고)
  *   3) 온라인(목 서버): 일반 방은 Assist.allowed() === false (버튼/코치 숨김, H G T 무반응), 비기너 방은 true + 한 번 쏴 봄
+ *   4) 휴대폰 터치(844x390, hasTouch): 코치 문구에 키보드 말투(Space·Esc·키)가 없고 kbd 배지가 안 보임 · 목표 탱크를 골짜기/왼쪽 끝/오른쪽 끝/높은 곳에 옮겨도
+ *      카메라가 코치 카드·HUD 위로 끌어올려 가려지지 않음 · '목표 쪽을 봐요' 안내가 버튼 말투 · 각도가 안 맞은 채 힘을 채우다 ✋ 취소 버튼으로 발사 없이 취소
  *
  *   NODE_PATH=$(npm root -g) HTML=/path/built.html node tools/test-kidbot.js
  *   환경변수: TURNS(12) NORMAL_TURNS(10)
  *             REACT_MS(150): 초록 "지금 놓으세요" 신호를 본 뒤 손을 떼기까지의 반응 시간 (Playwright 왕복 ~50ms 가 더해진다.
  *                            어린이는 0.3~0.6초 → REACT_MS=300 / 500 으로 민감도 확인)
  *             AIM(G | arrows): 각도를 G 로 맞출지, 방향키만으로 코치의 ▲▼ 안내를 따라갈지
- *             SIZE(1280x720) SHOTS(/tmp: 스크린샷 폴더) ONLINE=0 (온라인 검사 건너뜀) NORMAL=0 (일반 규칙 검사 건너뜀)
+ *             SIZE(1280x720) SHOTS(/tmp: 스크린샷 폴더) ONLINE=0 (온라인 검사 건너뜀) NORMAL=0 (일반 규칙 검사 건너뜀) TOUCH=0 (휴대폰 터치 검사 건너뜀) ONLY_TOUCH=1 (터치 검사만)
  *             TRACE=1 (빗나간 발사의 힘 막대 프레임별 기록 출력)
  */
 const { chromium } = require('playwright');
@@ -331,8 +333,129 @@ async function onlineRoom(browser, server, beginner) {
   return { info, seen, shotRes };
 }
 
+
+/* ---------------- 4) 휴대폰 터치 (844x390) ---------------- */
+/** 이 화면에서 (코치 카드 · HUD) 에 가려지거나 화면 밖인 목표 탱크 점들 + 코치 문구/배지 정보 */
+const TOUCH_PROBE = () => {
+  const box = sel => { const e = document.querySelector(sel); if (!e) return null; const cs = getComputedStyle(e); if (cs.display === 'none' || cs.visibility === 'hidden') return null; const b = e.getBoundingClientRect(); return b.width > 4 && b.height > 4 ? [b.left, b.top, b.right, b.bottom] : null; };
+  const boxes = ['#coach', '#hud'].map(box).filter(Boolean);
+  const inside = q => boxes.some(b => q.x >= b[0] && q.x <= b[2] && q.y >= b[1] && q.y <= b[3]) || q.x < 0 || q.x > innerWidth || q.y < 0 || q.y > innerHeight;
+  const s = Assist.state, tp = s.target != null ? findPlayer(s.target) : null, me = findPlayer(G.ctl.pid);
+  const pts = q => [w2s(q.x, q.y - 14), w2s(q.x, q.y + 8), w2s(q.x, q.y - 40 * TANK_SCALE)];   // 몸통 가운데 · 바닥 · 꼭대기
+  const co = document.querySelector('#coach');
+  const pads = ['#touch .tpad.left', '#touch .tpad.right'].map(box).filter(Boolean);
+  const cb = box('#coach');
+  return {
+    targetHidden: tp ? pts(tp).some(inside) : null, meHidden: pts(me).some(inside),
+    coachText: co ? co.innerText : '', kbdShown: [...document.querySelectorAll('#coach kbd')].filter(k => getComputedStyle(k).display !== 'none').length,
+    padOverlap: cb ? pads.some(b => cb[0] < b[2] && cb[2] > b[0] && cb[1] < b[3] && cb[3] > b[1]) : false,
+    touchClass: document.body.classList.contains('touch'), msg: s.msg && (s.msg.text + ' / ' + s.msg.sub), zoom: +Cam.zoom.toFixed(2)
+  };
+};
+const TOUCH_PLACE = place => {
+  if (!G.ctl) return false;
+  const me = findPlayer(G.ctl.pid), en = G.players.filter(o => o.id !== me.id && o.alive);
+  const sy = xx => surfaceY(G.terrain.mask, xx);
+  const cand = []; for (let xx = 90; xx <= 1510; xx += 10) if (Math.abs(xx - me.x) > 200 && Math.abs(xx - me.x) < 900) cand.push(xx);
+  if (!cand.length) return false;
+  let x;
+  if (place === 'valley') x = cand.reduce((a, c) => sy(c) > sy(a) ? c : a, cand[0]);
+  else if (place === 'high') x = cand.reduce((a, c) => sy(c) < sy(a) ? c : a, cand[0]);
+  else if (place === 'left') x = Math.max(90, Math.min(...cand));
+  else x = Math.min(1510, Math.max(...cand));
+  const tp = en[0]; tp.x = x; tp.y = sy(x); tp.vy = 0;
+  en.slice(1).forEach((o, i) => { o.x = me.x < 800 ? 1500 - i * 60 : 100 + i * 60; o.y = sy(o.x); });
+  Assist._onTurn(me, G.ctl);
+  return true;
+};
+
+async function touchPhone(browser) {
+  const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true });
+  const page = await ctx.newPage();
+  watch(page, 'touch');
+  await page.goto('file://' + HTML);
+  await page.waitForTimeout(1200);
+  await page.evaluate(() => { try { localStorage.clear(); } catch (e) { /* 무시 */ } });
+  await page.evaluate(RECORDER);
+  const cfg = theme => ({ teamMode: false, theme, beginner: true, players: [
+    { id: 'p0', name: '나', tank: 'cannon', team: 0, slot: 0, cpu: false },
+    { id: 'p1', name: 'CPU 1', tank: 'missile', team: 0, slot: 1, cpu: true },
+    { id: 'p2', name: 'CPU 2', tank: 'laser', team: 0, slot: 2, cpu: true }] });
+  const KEYWORDS = /Space|Esc|키를|키\)|키로|\bkey\b/;
+  let measured = 0; const hidden = [], padHits = [];
+  let textChecked = false;
+  for (const theme of ['grass', 'night', 'desert', 'volcano']) {
+    await page.evaluate(c => { window.__prevStart = G.startEv; G.lastConfig = c; launchLocal(c); }, cfg(theme));
+    await page.waitForFunction(() => G.startEv !== window.__prevStart && G.screen === 'play' && G.turn && G.players.length === 3, null, { timeout: 20000 });
+    const st = await waitHumanTurn(page, false);
+    if (st !== 'turn') { console.log(`[touch ${theme}] no human turn (${st})`); continue; }
+    await sleep(1200);
+    if (!textChecked) {
+      textChecked = true;
+      const a = await page.evaluate(TOUCH_PROBE);
+      console.log('[touch] first turn coach:', JSON.stringify(a.coachText.replace(/\n/g, ' | ')));
+      check(a.touchClass, 'touch: body.touch is set on a touch device');
+      check(!KEYWORDS.test(a.coachText) && a.kbdShown === 0, `touch: coach card has no keyboard words (Space/Esc/키) and no visible kbd badge (kbd shown ${a.kbdShown})`);
+      // 목표 반대쪽을 보게 하면 '버튼' 말투
+      await page.evaluate(() => { const me = findPlayer(G.ctl.pid); me.facing = -Assist.state.rec.facing; });
+      await sleep(500);
+      const away = await page.evaluate(TOUCH_PROBE);
+      console.log('[touch] facing away:', JSON.stringify(away.msg));
+      check(/목표 쪽을 봐요/.test(away.msg) && /버튼/.test(away.msg) && !KEYWORDS.test(away.msg + away.coachText), 'touch: facing-away hint speaks in buttons, not keys');
+      await page.evaluate(() => { const me = findPlayer(G.ctl.pid); me.facing = Assist.state.rec.facing; });
+      await sleep(400);
+      // 각도가 안 맞은 채 힘 채우기 → 안내 + ✋ 취소 버튼 (발사하지 않고 처음부터)
+      await page.evaluate(() => { findPlayer(G.ctl.pid).angle = 8; });
+      await sleep(400);
+      await page.evaluate(() => { Input.fire = true; });
+      await sleep(600);
+      const ch = await page.evaluate(() => ({ charging: !!(G.ctl && G.ctl.charging), power: G.ctl && G.ctl.power, msg: Assist.state.msg.text + ' / ' + Assist.state.msg.sub, cancelBtn: (() => { const e = document.querySelector('.tcancel'); if (!e) return false; const b = e.getBoundingClientRect(); return getComputedStyle(e).display !== 'none' && b.width > 30; })() }));
+      console.log('[touch] charging with a wrong angle:', JSON.stringify(ch));
+      check(ch.charging && /각도부터/.test(ch.msg) && ch.cancelBtn, 'touch: charging with the wrong angle shows the "angle first" hint and a visible ✋ cancel button');
+      try { await page.tap('.tcancel', { timeout: 2000 }); } catch (e) { console.log('tap failed', e.message.split('\n')[0]); }
+      await sleep(300);
+      const after = await page.evaluate(() => ({ charging: !!(G.ctl && G.ctl.charging), alive: !!(G.ctl && !G.ctl.done), power: G.ctl ? G.ctl.power : null }));
+      await page.evaluate(() => { Input.fire = false; });
+      await sleep(300);
+      const after2 = await page.evaluate(() => ({ alive: !!(G.ctl && !G.ctl.done) }));
+      check(!after.charging && after.alive && after2.alive, 'touch: ✋ cancel stops the charge without firing (turn still ours after releasing) ' + JSON.stringify([after, after2]));
+      await page.evaluate(() => { if (G.ctl) Assist._onTurn(findPlayer(G.ctl.pid), G.ctl); });
+      await sleep(500);
+      // 🎯 버튼으로 도우미를 꺼도 (실수) 코치 자리에 '켜기' 버튼이 남아서 되살릴 수 있다
+      await page.evaluate(() => Assist.cycle());      // 2 -> 0
+      await sleep(700);
+      const off = await page.evaluate(() => { const b = document.querySelector('#co-on'), c = document.querySelector('#coach'); const vis = e => !!e && getComputedStyle(e).display !== 'none' && !e.hidden && e.getBoundingClientRect().width > 20; return { lvl: Assist.level, onBtn: vis(b), coach: vis(c) && !c.classList.contains('hidden'), text: c.innerText.replace(/\n/g, ' | ') }; });
+      console.log('[touch] assist switched off:', JSON.stringify(off));
+      check(off.lvl === 0 && off.coach && off.onBtn && /꺼졌어요/.test(off.text) && !KEYWORDS.test(off.text), 'touch: after switching the assistant off a "켜기" chip stays on the card and speaks in buttons');
+      try { await page.tap('#co-on', { timeout: 2000 }); } catch (e) { console.log('tap #co-on failed', e.message.split('\n')[0]); }
+      await sleep(500);
+      check((await page.evaluate(() => Assist.level)) === 2, 'touch: tapping 켜기 turns the assistant back on (level 2)');
+    }
+    for (const place of ['valley', 'left', 'right', 'high']) {
+      const ok = await page.evaluate(TOUCH_PLACE, place);
+      if (!ok) continue;
+      await sleep(1900);
+      const r = await page.evaluate(TOUCH_PROBE);
+      measured++;
+      if (r.targetHidden || r.meHidden) { hidden.push(`${theme}/${place}`); await page.screenshot({ path: path.join(OUT, `touch-hidden-${theme}-${place}.png`) }); }
+      if (r.padOverlap) padHits.push(`${theme}/${place}`);
+    }
+    // 이 판은 여기서 끝 (다음 테마로)
+  }
+  check(measured >= 12, `touch: measured ${measured} target placements (>= 12)`);
+  check(hidden.length === 0, `touch: my tank and the target tank stay visible above the coach card / HUD in ${measured} hard placements (hidden: ${hidden.join(', ') || 'none'})`);
+  check(padHits.length === 0, `touch: the coach card never covers the on-screen arrow/fire pads (overlaps: ${padHits.join(', ') || 'none'})`);
+  await ctx.close();
+}
+
 (async () => {
   const browser = await chromium.launch();
+  if (process.env.ONLY_TOUCH === '1') {      // 휴대폰 터치 검사만 빠르게
+    await touchPhone(browser);
+    console.log(errors.length ? 'ERRORS:\n' + errors.join('\n') : 'NO PAGE ERRORS');
+    await browser.close();
+    process.exit(failed || errors.length ? 1 : 0);
+  }
   const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, hasTouch: false });
   const page = await ctx.newPage();
   watch(page, 'local');
@@ -404,6 +527,9 @@ async function onlineRoom(browser, server, beginner) {
     await onlineRoom(browser, server, false);
     await onlineRoom(browser, server, true);
   }
+
+  /* ---- 4) 휴대폰 터치 ---- */
+  if (process.env.TOUCH !== '0') await touchPhone(browser);
 
   console.log(errors.length ? 'ERRORS:\n' + errors.join('\n') : 'NO PAGE ERRORS');
   console.log(JSON.stringify({ beginner: sb, normal: sn, reactMs: REACT_MS, failed, errors: errors.length }));

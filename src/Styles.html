@@ -461,6 +461,11 @@ canvas.ravatar { width: 40px; height: 40px; flex: none; }
 .bs b, .bk b { display: block; color: #fff; font-weight: normal; font-size: 17px; }
 .bs kbd { margin-right: 3px; }
 .okc { color: #8dffab; }
+/* 키보드용 / 터치용 문구 (body.touch 는 UI.boot 가 터치 지원 기기에 붙인다) */
+.t-only { display: none; }
+body.touch .k-only { display: none; }
+body.touch .t-only { display: inline; }
+.begtog.tip { box-shadow: 0 0 0 3px rgba(255,255,255,.75), 0 0 16px rgba(125,255,154,.9); }
 .beg-keys, .beg-easy { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .bk { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.05); }
 .bk kbd { flex: none; font-size: 22px; padding: 3px 12px; }

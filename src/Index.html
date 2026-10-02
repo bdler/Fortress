@@ -143,6 +143,7 @@
           <div class="kg"><div class="kk"><kbd>4</kbd><kbd>5</kbd><kbd>6</kbd></div><div class="kd"><b>아이템</b>듀얼 · 파워업 · 회복</div></div>
           <div class="kg"><div class="kk"><kbd>7</kbd><kbd>8</kbd><kbd>9</kbd><kbd>0</kbd></div><div class="kd"><b>감정 표현</b>말풍선으로 도발/응원</div></div>
           <div class="kg"><div class="kk"><kbd>Tab</kbd></div><div class="kd"><b>턴 넘기기</b>이동만 하고 넘길 때</div></div>
+          <div class="kg"><div class="kk"><kbd>Esc</kbd></div><div class="kd"><b>힘 채우기 취소</b>잘못 눌렀을 때 (비기너·연습)</div></div>
           <div class="kg"><div class="kk"><kbd>V</kbd></div><div class="kd"><b>카메라</b>전체 보기 ↔ 따라가기</div></div>
           <div class="kg"><div class="kk"><kbd class="w">🖱 휠</kbd></div><div class="kd"><b>줌</b>마우스 휠로 확대/축소</div></div>
           <div class="kg"><div class="kk"><kbd class="w">📱 터치</kbd></div><div class="kd"><b>모바일</b>화면 버튼으로 이동/각도/발사</div></div>
@@ -186,21 +187,22 @@
               <rect x="318" y="210" width="112" height="22" rx="7" fill="rgba(80,255,120,.38)" stroke="#2bd35e" stroke-width="3.5"/>
               <path d="M374 206 l-8 -13 h16 z" fill="#fff" stroke="#000" stroke-width="2"/>
               <text x="22" y="251" class="fg-t fg-d">힘 0</text>
-              <text x="374" y="251" class="fg-t fg-g" text-anchor="middle">② 초록 구간까지 Space 꾹!</text>
+              <text x="374" y="251" class="fg-t fg-g k-only" text-anchor="middle">② 초록 구간까지 Space 꾹!</text>
+              <text x="374" y="251" class="fg-t fg-g t-only" text-anchor="middle">② 초록 구간까지 발사 꾹!</text>
               <text x="538" y="251" class="fg-t fg-d" text-anchor="end">100</text>
             </svg>
           </div>
           <h3 class="beg-h">이렇게 쏘면 돼요</h3>
           <div class="beg-steps">
-            <div class="bs"><i>1</i><div><b>각도 맞추기</b><kbd>↑</kbd><kbd>↓</kbd> 로 포신을 움직여요. <em>초록 부채꼴</em> 안에 들어오면 <span class="okc">✅ 딱 맞아요!</span> 어려우면 <kbd>G</kbd> 를 눌러요. 자동으로 맞춰줘요.</div></div>
-            <div class="bs"><i>2</i><div><b>힘 채우기</b><kbd class="w">Space</kbd> 를 꾹 누르면 힘이 차올라요. 힘 게이지의 <em>초록 구간</em>에 들어오면 &quot;지금 놓으세요!&quot;</div></div>
-            <div class="bs"><i>3</i><div><b>발사!</b><kbd class="w">Space</kbd> 에서 손을 떼면 쾅! 점선 끝의 동그라미가 포탄이 떨어질 곳이에요.</div></div>
+            <div class="bs"><i>1</i><div><b>각도 맞추기</b><span class="k-only"><kbd>↑</kbd><kbd>↓</kbd> 로</span><span class="t-only">화면의 <em>▲ ▼</em> 버튼으로</span> 포신을 움직여요. <em>초록 부채꼴</em> 안에 들어오면 <span class="okc">✅ 딱 맞아요!</span> 어려우면 <span class="k-only"><kbd>G</kbd> 를 눌러요.</span><span class="t-only">카드의 <em>🎯 자동</em> 버튼을 눌러요.</span> 자동으로 맞춰줘요.</div></div>
+            <div class="bs"><i>2</i><div><b>힘 채우기</b><span class="k-only"><kbd class="w">Space</kbd> 를 꾹 누르면</span><span class="t-only">빨간 <em>발사</em> 버튼을 꾹 누르면</span> 힘이 차올라요. 힘 게이지의 <em>초록 구간</em>에 들어오면 &quot;지금 놓으세요!&quot;</div></div>
+            <div class="bs"><i>3</i><div><b>발사!</b><span class="k-only"><kbd class="w">Space</kbd> 에서 손을 떼면</span><span class="t-only">발사 버튼에서 손을 떼면</span> 쾅! 점선 끝의 동그라미가 포탄이 떨어질 곳이에요. 잘못 눌렀으면 힘을 채우는 중에 <span class="k-only"><kbd>Esc</kbd> 를 눌러요.</span><span class="t-only"><em>✋ 취소</em> 버튼을 눌러요.</span> 발사하지 않고 처음부터 다시 해요.</div></div>
           </div>
-          <h3 class="beg-h">조준 도우미 키</h3>
+          <h3 class="beg-h"><span class="k-only">조준 도우미 키</span><span class="t-only">조준 도우미 버튼</span></h3>
           <div class="beg-keys">
-            <div class="bk"><kbd>H</kbd><div><b>도우미 단계</b>끔 → 점선 → 점선+추천 각도/힘 순서로 바꿔요. 화면의 🎯 버튼도 같아요.</div></div>
-            <div class="bk"><kbd>T</kbd><div><b>목표 바꾸기</b>다른 적을 노려요. 적 탱크를 콕 눌러도 돼요.</div></div>
-            <div class="bk"><kbd>G</kbd><div><b>각도 자동 맞추기</b>포신이 추천 각도로 스르륵 움직여요.</div></div>
+            <div class="bk"><kbd><span class="k-only">H</span><span class="t-only">🎯</span></kbd><div><b>도우미 단계</b><span class="k-only">끔 → 점선 → 점선+추천 각도/힘 순서로 바꿔요. 화면의 🎯 버튼도 같아요.</span><span class="t-only">아래쪽 HUD 의 🎯 버튼을 누를 때마다 끔 → 점선 → 점선+추천 각도/힘 순서로 바뀌어요.</span></div></div>
+            <div class="bk"><kbd><span class="k-only">T</span><span class="t-only">🔄</span></kbd><div><b>목표 바꾸기</b>다른 적을 노려요. <span class="k-only">적 탱크를 콕 눌러도 돼요.</span><span class="t-only">카드의 🔄 버튼이나 적 탱크를 콕 눌러요.</span></div></div>
+            <div class="bk"><kbd><span class="k-only">G</span><span class="t-only">🎯</span></kbd><div><b>각도 자동 맞추기</b>포신이 추천 각도로 스르륵 움직여요.<span class="t-only"> (카드의 🎯 자동 버튼)</span></div></div>
           </div>
           <h3 class="beg-h">뭐가 쉬워지나요?</h3>
           <div class="beg-easy">

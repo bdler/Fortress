@@ -129,9 +129,12 @@ const AssistSolver = (function () {
   const maskIds = typeof WeakMap === 'function' ? new WeakMap() : null;
   let maskSeq = 0, winCache = { key: '', win: null };
   function cachedWindow(env, opts) {
+    // 지형이 제자리에서 바뀔 수 있으므로(크레이터/얼음벽은 같은 마스크를 고친다) 호출자가 지형 버전(opts.terrainKey)을 넘길 때만 재사용한다.
+    // 안 넘기면 매번 새로 계산 — 낡은 창(window)으로 '머리 위가 막혔어요/추천 가능' 을 잘못 알려주는 일이 없도록.
+    if (opts.terrainKey == null) return strikeWindow(env, env.target);
     let id = 0;
     if (maskIds) { id = maskIds.get(env.mask); if (!id) { id = ++maskSeq; maskIds.set(env.mask, id); } }
-    let key = [id, opts.terrainKey || 0, env.cls, env.wind, env.w.sr, env.w.sdmg, env.hitR, env.bm, env.sid, env.target.id, Math.round(env.target.x), Math.round(env.target.y)].join(',');
+    let key = [id, opts.terrainKey, env.cls, env.wind, env.w.sr, env.w.sdmg, env.hitR, env.bm, env.sid, env.target.id, Math.round(env.target.x), Math.round(env.target.y)].join(',');
     for (const p of env.list) key += '|' + (p.alive ? Math.round(p.x) + ',' + Math.round(p.y) : 'x');
     if (winCache.key !== key) winCache = { key, win: strikeWindow(env, env.target) };
     return winCache.win;
@@ -351,7 +354,18 @@ const AssistSolver = (function () {
   function anglePenalty(a) { return Math.abs(a - 50) * 0.6 + (a < 30 ? (30 - a) * 2.5 : 0) + (a > 75 ? (a - 75) * 3 : 0); }
   function powerPenalty(p) { return (p < 30 ? (30 - p) * 1.5 : 0) + (p > 90 ? (p - 90) * 2 + (p > 95 ? (p - 95) * 8 : 0) : 0); }
   function widthBonus(w) { return 12 * (1 - Math.exp(-w / 2.5)); }
-  function narrowPenalty(w) { return w < 1.5 ? 14 : w < 2.5 ? 4 : 0; }
+  function narrowPenalty(w) { return w < 1 ? 40 : w < 1.5 ? 22 : w < 2.5 ? 9 : w < 4 ? 2 : 0; }
+  /** 각도 허용 폭(도)이 0~2 도면 방향키로 맞추기 힘들다 (G 는 정확히 맞춤) → 웬만하면 더 넓은 각도를 고른다 */
+  function angleWinPenalty(span) { return span <= 0 ? 16 : span === 1 ? 8 : span === 2 ? 3 : 0; }
+  /** 이 힘 그대로 정수 각도를 위/아래로 움직여도 맞는 범위 */
+  function angleWindow(env, a, p) {
+    let lo = a, hi = a;
+    for (let k = 1; k <= 25 && a - k >= 0; k++) { if (hitAt(env, a - k, p)) lo = a - k; else break; }
+    for (let k = 1; k <= 25 && a + k <= 90; k++) { if (hitAt(env, a + k, p)) hi = a + k; else break; }
+    return { lo, hi };
+  }
+  /** 초록 구간이 이보다 좁으면 (힘 0.1 단위 몇 칸뿐) 추천하지 않고 자리를 옮기게 한다 */
+  const MIN_ZONE = 1.0;
 
   function aimSetup(env, target) {
     const off = env.win ? (env.win.lo + env.win.hi) / 2 : 0;
@@ -361,7 +375,7 @@ const AssistSolver = (function () {
   /**
    * 추천: 목표에 맞는 (각도, 힘) 과 허용 구간.
    *  반환 { ok, reason, angle, power, pLo, pHi, aLo, aHi, facing, dist, blast, tol, d, selfRisk }
-   *   reason: 'notarget' | 'mound' | 'far' | 'blocked' | ''(ok)
+   *   reason: 'notarget' | 'mound' | 'far' | 'blocked' | 'roof' | 'narrow'(맞는 힘 구간이 1 미만: 추천 안 함) | ''(ok)
    */
   function solve(mask, players, shooter, targetId, weapon, wind, opts) {
     opts = Object.assign({}, opts, { targetId });
@@ -383,7 +397,24 @@ const AssistSolver = (function () {
     const ballistic = env.cls === 'shell' && !weapon.homing && !weapon.drill && !weapon.bounce;
     const widen = weapon.homing ? 14 : (weapon.drill || weapon.bounce) ? 2 : 1;
     let best = null, zones = 0, anyAnalytic = false;
+    const cands = [];
     const shots0 = SHOTS;
+    /** (각도 a, 이 각도에서 맞는 힘 하나 r.p) → 초록 구간·점수를 계산해 후보로 등록 */
+    const consider = (a, r) => {
+      zones++;
+      const z = powerZone(env, a, r.p), width = z.hi - z.lo, pm = round1((z.lo + z.hi) / 2);
+      const pmid = hitAt(env, a, pm) ? pm : r.p;
+      const res = evalShot(env, a, pmid, null);
+      let self = false;
+      if (!env.noSelf && res.out.kind !== 'sea') {
+        const sx = shooter.x - res.out.x, sy = shooter.y - 14 - res.out.y;
+        self = Math.sqrt(sx * sx + sy * sy) < env.R + env.hitR + 6;
+      }
+      const score = anglePenalty(a) + powerPenalty(pmid) - widthBonus(width) + narrowPenalty(width) + (self ? 60 : 0);
+      const cand = { a, p: pmid, z, width, score, self, d: res.d };
+      cands.push(cand);
+      if (!best || score < best.score) best = cand;
+    };
     for (let d = 0; d <= 50; d++) {
       if (!best && SHOTS - shots0 > 380) break;   // 아무리 찾아도 없으면 (막힌 지형) 오래 붙잡지 않는다
       for (let sgn = 1; sgn >= (d ? -1 : 1); sgn -= 2) {
@@ -400,28 +431,38 @@ const AssistSolver = (function () {
           if (zones >= 12) continue;
         }
         const r = findPower(env, a, p0);
-        if (!r) continue;
-        zones++;
-        const z = powerZone(env, a, r.p), width = z.hi - z.lo, pm = round1((z.lo + z.hi) / 2);
-        const pmid = hitAt(env, a, pm) ? pm : r.p;
-        const res = evalShot(env, a, pmid, null);
-        let self = false;
-        if (!env.noSelf && res.out.kind !== 'sea') {
-          const sx = shooter.x - res.out.x, sy = shooter.y - 14 - res.out.y;
-          self = Math.sqrt(sx * sx + sy * sy) < env.R + env.hitR + 6;
+        if (r) consider(a, r);
+      }
+    }
+    // 해석 해(목표 중심을 정확히 지나는 탄도)가 전부 막혔어도, 높은 섬·절벽 위 목표는 '벽에 맞고 목표 근처에서 터지는' 조합이 있을 수 있다.
+    // 그럴 땐 굵은 격자로 한 번 더 찾는다 (드문 경우라 발사 수를 500 안으로 제한)
+    if (!best && env.cls === 'shell' && anyAnalytic && rec.dist < 1900) {
+      const s1 = SHOTS;
+      for (let d = 0; d <= 30 && SHOTS - s1 < 500 && cands.length < 3; d += 3) {
+        for (let sgn = 1; sgn >= (d ? -1 : 1) && cands.length < 3; sgn -= 2) {
+          const a = 50 + sgn * d;
+          for (let pw = 100; pw >= 40; pw -= 3) {
+            if (hitAt(env, a, pw)) { consider(a, { p: pw }); break; }
+          }
         }
-        const score = anglePenalty(a) + powerPenalty(pmid) - widthBonus(width) + narrowPenalty(width) + (self ? 60 : 0);
-        if (!best || score < best.score) best = { a, p: pmid, z, width, score, self, d: res.d };
       }
     }
     if (!best) { rec.reason = anyAnalytic && rec.dist < 1900 ? 'blocked' : 'far'; return rec; }
-    rec.ok = true; rec.reason = '';
+    // 3) 각도 허용 구간 (그 힘 그대로, 정수 각도). 폭이 0~2 도로 너무 좁으면 다음 후보들과 비교해서 더 넓은 것을 고른다
+    cands.sort((x, y) => x.score - y.score);
+    let fin = null;
+    for (let i = 0; i < cands.length && i < 4; i++) {
+      const c = cands[i];
+      c.aw = angleWindow(env, c.a, c.p);
+      c.final = c.score + angleWinPenalty(c.aw.hi - c.aw.lo);
+      if (!fin || c.final < fin.final) fin = c;
+      if (c.aw.hi - c.aw.lo >= 3 && i === 0) break;      // 첫 후보가 충분히 넓으면 더 볼 필요 없음
+    }
+    best = fin;
     rec.angle = best.a; rec.power = best.p; rec.pLo = best.z.lo; rec.pHi = best.z.hi; rec.selfRisk = best.self; rec.d = best.d;
-    // 3) 각도 허용 구간 (그 힘 그대로, 정수 각도)
-    let lo = best.a, hi = best.a;
-    for (let k = 1; k <= 25 && best.a - k >= 0; k++) { if (hitAt(env, best.a - k, best.p)) lo = best.a - k; else break; }
-    for (let k = 1; k <= 25 && best.a + k <= 90; k++) { if (hitAt(env, best.a + k, best.p)) hi = best.a + k; else break; }
-    rec.aLo = lo; rec.aHi = hi;
+    rec.aLo = best.aw.lo; rec.aHi = best.aw.hi;
+    if (best.width < MIN_ZONE) { rec.reason = 'narrow'; return rec; }     // 머리카락처럼 얇은 해: 추천하지 않고 자리를 옮기게 (ok=false)
+    rec.ok = true; rec.reason = '';
     return rec;
   }
 
@@ -479,14 +520,16 @@ const AssistSolver = (function () {
 /* =========================================================
  *  Assist 엔진 (게임 쪽)
  * ========================================================= */
+/** 힘 구간이 게이지의 절반을 넘게 넓으면 (예: 1~100) 숫자 대신 '아무 때나' 라고 알려준다 */
+const WIDE_ZONE = 60;
 const Assist = {
   level: 0,                 // 0 끄기 · 1 궤적 · 2 전체(궤적 + 추천 각도/힘)
   userSet: false,           // 이번 판에서 사람이 직접 바꿨는가 (안 바꿨으면 기본값: 비기너 2 / 그 외 0)
   target: null,             // 목표 플레이어 id
   state: {
     active: false, level: 0, target: null, rec: null, path: null, land: null,
-    msg: { step: 1, text: '', tone: 'info', icon: '', sub: '' },
-    inAngle: false, inPower: false, zone: null, hit: false, steps: ['todo', 'todo', 'todo'], angle: 0, power: 0, charging: false, targetName: ''
+    msg: { step: 1, text: '', tone: 'info', icon: '', sub: '', c: '' },
+    inAngle: false, inPower: false, zone: null, hit: false, steps: ['todo', 'todo', 'todo'], angle: 0, power: 0, charging: false, targetName: '', offHint: false
   },
   _picked: false, _sig: '', _nextT: 0, _aim: null, _wasIn: false, _zoneKey: '', _zone: null, _rec: null, _recFor: '', _busy: 0,
 
@@ -505,9 +548,16 @@ const Assist = {
   cycle() {
     if (!this.allowed()) { this._say('이 방에서는 조준 도우미를 쓸 수 없어요'); return; }
     this.setLevel((this.level + 1) % 3);
-    this._say(['🎯 조준 도우미: 꺼짐', '🎯 조준 도우미 1단계: 점선 궤적', '🎯 조준 도우미 2단계: 궤적 + 추천 각도·힘'][this.level]);
+    const back = this._touch() ? '🎯 버튼을 누르면 다시 켜져요' : 'H 를 누르면 다시 켜져요';
+    this._say(['🎯 조준 도우미: 꺼졌어요 · ' + back, '🎯 조준 도우미 1단계: 점선 궤적', '🎯 조준 도우미 2단계: 궤적 + 추천 각도·힘'][this.level]);
     if (typeof Sound !== 'undefined' && Sound.play) Sound.play('click');
   },
+  /** 터치 화면(휴대폰·태블릿)이면 키보드 말투 대신 화면 버튼 말투로 안내한다 */
+  _touch() { try { return typeof document !== 'undefined' && !!document.body && document.body.classList.contains('touch'); } catch (e) { return false; } },
+  /** 힘 충전을 취소할 수 있는 판인가 (Game.canCancelCharge: 비기너·로컬 연습) */
+  _canCancel() { try { return typeof canCancelCharge === 'function' && !!canCancelCharge(); } catch (e) { return false; } },
+  /** 솔버에 넘기는 옵션: 지형 버전(크레이터/얼음벽마다 바뀜)을 같이 넘겨 폭격류 '창' 캐시가 낡은 지형으로 재사용되지 않게 한다 */
+  _opts(tid) { return { targetId: tid, terrainKey: G.terrain ? G.terrain.ops.length : 0 }; },
   _say(msg) { try { if (typeof toast === 'function') toast(msg); } catch (e) { /* 무시 */ } },
   _notify() { try { if (typeof updateHud === 'function' && G.screen === 'play') updateHud(true); } catch (e) { /* 무시 */ } },
 
@@ -530,7 +580,7 @@ const Assist = {
   _clear() {
     const s = this.state;
     s.active = false; s.rec = null; s.path = null; s.land = null; s.zone = null; s.hit = false; s.inAngle = false; s.inPower = false; s.target = null;
-    s.level = this.level; s.charging = false; s.slow = false;
+    s.level = this.level; s.charging = false; s.slow = false; s.offHint = false;
     this._rec = null; this._sig = ''; this._wasIn = false;
   },
 
@@ -612,8 +662,15 @@ const Assist = {
   },
   _tick(dt) {
     const st = this.state;
-    if (!this.allowed()) { if (this.level !== 0) this.level = 0; if (st.active) this._clear(); st.level = 0; return; }
-    if (this.level <= 0 || !this._humanTurn() || G.busy) { if (st.active || st.level !== this.level) this._clear(); st.level = this.level; return; }
+    if (!this.allowed()) { if (this.level !== 0) this.level = 0; if (st.active) this._clear(); st.level = 0; st.offHint = false; return; }
+    if (this.level <= 0 || !this._humanTurn() || G.busy) {
+      if (st.active || st.level !== this.level) this._clear();
+      st.level = this.level;
+      // 비기너에서 도우미를 꺼 둔 채로도 '다시 켜기' 칩이 보이도록 (실수로 H 를 눌러도 되돌릴 수 있게)
+      st.offHint = this.level <= 0 && G.busy !== true && this._humanTurn() && G.beginner === true;
+      return;
+    }
+    st.offHint = false;
     const c = G.ctl, p = findPlayer(c.pid);
     if (!p || !p.alive || p.cpu) { this._clear(); return; }
     if (this.target == null || !this._validTarget(p, this.target)) { this.target = this._nearest(p); this._sig = ''; }
@@ -623,7 +680,7 @@ const Assist = {
     st.targetName = tp ? tp.name : '';
     const w = this._weapon(p, c);
     if (!w) { this._clear(); return; }
-    const opts = { targetId: this.target };
+    const opts = this._opts(this.target);
     const mask = G.terrain.mask, wind = G.turn.wind !== undefined ? G.turn.wind : (G.wind || 0);
 
     /* 1) 추천값: 입력이 바뀌었을 때만 (걷는 동안은 잠깐씩 늦춰서) */
@@ -642,7 +699,7 @@ const Assist = {
             const alt = this._enemies(p).filter(o => o.id !== this.target).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y));
             for (const o of alt) {
               let r2 = null;
-              try { r2 = AssistSolver.solve(mask, G.players, p, o.id, w, wind, { targetId: o.id }); } catch (e) { r2 = null; }
+              try { r2 = AssistSolver.solve(mask, G.players, p, o.id, w, wind, this._opts(o.id)); } catch (e) { r2 = null; }
               if (r2 && r2.ok) {
                 this._say('🎯 앞이 막혀서 ' + o.name + ' 쪽으로 목표를 바꿨어요');
                 this.target = o.id; tp = o; r = r2; st.target = o.id; st.targetName = o.name;
@@ -681,7 +738,7 @@ const Assist = {
         const zk = this._sig + '|' + angI;
         if (zk !== this._zoneKey) {
           this._zoneKey = zk;
-          try { this._zone = AssistSolver.zoneAt(mask, G.players, p, this.target, w, wind, angI, { targetId: this.target, seedPower: rec.power }); } catch (e) { this._zone = null; }
+          try { this._zone = AssistSolver.zoneAt(mask, G.players, p, this.target, w, wind, angI, Object.assign(this._opts(this.target), { seedPower: rec.power })); } catch (e) { this._zone = null; }
         }
         if (this._zone && this._zone.ok) { st.zone = this._zone; st.inAngle = true; }
       }
@@ -704,7 +761,7 @@ const Assist = {
     st.path = null; st.land = null; st.hit = false;
     if (pw > 0) {
       try {
-        const tr = AssistSolver.traj(mask, G.players, p, p.facing, angI, clamp(pw, 1, 100), w, wind, { targetId: this.target });
+        const tr = AssistSolver.traj(mask, G.players, p, p.facing, angI, clamp(pw, 1, 100), w, wind, this._opts(this.target));
         st.path = tr.path; st.land = tr.land; st.hit = tr.hit;
         st.land.self = tr.self; st.land.hitAny = tr.hits.length > 0; st.land.live = c.charging;
         // 각도가 아직 안 맞은 채 쉬는 중(추천 힘으로 미리보기)에는 '맞아요' 표시를 하지 않는다 (코치 문장과 어긋나 보이지 않게)
@@ -716,7 +773,7 @@ const Assist = {
     // '지금 놓으세요' 는 "지금 놓아도 맞는" 때만: 놓는 프레임에 힘이 한 프레임치(inc) 더 오르므로 그만큼 여유를 둔다
     const inc = st.zone ? Math.min(spd * fm * Math.min(0.05, Math.max(1 / 60, dt)), (st.zone.pHi - st.zone.pLo) * 0.35) : 0;
     st.inPower = !!(c.charging && st.inAngle && st.zone && st.hit && pw >= st.zone.pLo && pw + inc <= st.zone.pHi);
-    if (st.inPower && !this._wasIn && typeof Sound !== 'undefined' && Sound.play) Sound.play('ready');
+    if (st.inPower && !this._wasIn && !(st.zone && st.zone.pHi - st.zone.pLo > WIDE_ZONE) && typeof Sound !== 'undefined' && Sound.play) Sound.play('ready');
     this._wasIn = st.inPower;
 
     /* 6) 코치 메시지 */
@@ -736,14 +793,18 @@ const Assist = {
     return s;
   },
 
-  /** 코치 카드에 보여줄 문장 (짧고 큰 글씨용) */
+  /** 코치 카드에 보여줄 문장 (짧고 큰 글씨용). msg = { step, tone, icon, text, sub, c }  — c 는 좁은 화면(휴대폰 가로)용 한 줄 (숫자까지 큰 글씨로) */
   _message(p, c, w, tp) {
-    const st = this.state, rec = st.rec;
-    const M = (step, tone, icon, text, sub) => { st.msg = { step, tone, icon, text, sub: sub || '' }; };
+    const st = this.state, rec = st.rec, tc = this._touch();
+    const M = (step, tone, icon, text, sub, cmp) => { st.msg = { step, tone, icon, text, sub: sub || '', c: cmp || text }; };
+    const HOLD = tc ? '빨간 발사 버튼을 꾹 눌러' : 'Space 를 꾹 눌러';       // 터치에는 Space / 방향키가 없다
+    const RELEASE = tc ? '손을 떼요!' : 'Space 를 떼요!';
+    const NEXTT = tc ? '🔄' : 'T';
+    const CANCEL = tc ? '✋ 버튼으로' : 'Esc 로';
     st.steps = ['todo', 'todo', 'todo'];
     if (this.level < 2) {
       if (c.charging && st.hit) M(2, 'go', '🟢', '지금 놓으세요!!', '점선 끝이 초록이에요');
-      else M(1, 'info', '🎯', '점선이 적에게 닿게 맞춰요', '▲▼ 각도 · Space 꾹 힘');
+      else M(1, 'info', '🎯', '점선이 적에게 닿게 맞춰요', tc ? '▲▼ 각도 · 발사 버튼 꾹 힘' : '▲▼ 각도 · Space 꾹 힘');
       return;
     }
     if (!tp) { M(1, 'warn', '🤔', '목표가 없어요', ''); return; }
@@ -752,42 +813,58 @@ const Assist = {
       st.steps[0] = 'active';
       if (rec.reason === 'mound') M(1, 'info', '🧊', '얼음벽은 세우고 싶은 곳에!', '점선 끝에 벽이 생겨요');
       else if (rec.reason === 'far') M(1, 'warn', '🚶', '가까이 가 볼까요?', '◀ ▶ 로 목표 쪽으로 움직여요');
-      else if (rec.reason === 'roof') M(1, 'warn', '☁️', '머리 위가 막혀 있어요', '다른 무기나 다른 목표(T)는 어때요?');
-      else M(1, 'warn', '🚧', '앞이 막혀 있어요', '◀ ▶ 로 자리를 옮기거나 T 로 다른 목표!');
+      else if (rec.reason === 'roof') M(1, 'warn', '☁️', '머리 위가 막혀 있어요', '다른 무기나 다른 목표(' + NEXTT + ')는 어때요?');
+      else if (rec.reason === 'narrow') M(1, 'warn', '🚶', '자리를 옮겨 볼까요?', '◀ ▶ 로 조금 움직이면 더 쉬워져요', '자리를 옮겨 볼까요? ◀ ▶');
+      else M(1, 'warn', '🚧', '앞이 막혀 있어요', '◀ ▶ 로 자리를 옮기거나 ' + NEXTT + ' 로 다른 목표!', '앞이 막혔어요! ◀ ▶ 로 옮겨요');
       return;
     }
     const dirName = rec.facing > 0 ? '오른쪽 ▶' : '◀ 왼쪽';
     if (p.facing !== rec.facing) {
       st.steps[0] = 'active';
-      M(1, 'warn', rec.facing > 0 ? '👉' : '👈', '목표 쪽을 봐요!', (rec.facing > 0 ? '→' : '←') + ' 키를 눌러요 (' + dirName + ')');
+      M(1, 'warn', rec.facing > 0 ? '👉' : '👈', '목표 쪽을 봐요!', tc ? (rec.facing > 0 ? '▶' : '◀') + ' 버튼을 눌러요 (' + dirName + ')' : (rec.facing > 0 ? '→' : '←') + ' 키를 눌러요 (' + dirName + ')',
+        '목표 쪽을 봐요! ' + (rec.facing > 0 ? '▶' : '◀'));
       return;
     }
     const a = st.angle, diff = rec.angle - a;
     if (!st.inAngle) {
       st.steps[0] = 'active';
-      if (diff > 0) M(1, 'act', '▲', diff > 10 ? '많이 올려요!' : '조금 더 올려요!', '지금 ' + a + '° → ' + rec.angle + '°');
-      else M(1, 'act', '▼', diff < -10 ? '많이 내려요!' : '조금 내려요!', '지금 ' + a + '° → ' + rec.angle + '°');
+      if (c.charging) {
+        // 각도가 안 맞은 채로 힘을 채우는 중: 놓으면 그대로 발사되니 먼저 알려주고, 취소할 방법도 알려준다
+        if (this._canCancel()) M(1, 'warn', '✋', '각도부터 맞춰요!', CANCEL + ' 취소하고 ▲▼ 로 맞춰요', '각도부터! ' + (tc ? '✋' : 'Esc') + ' 취소');
+        else M(1, 'warn', '✋', '각도부터 맞춰요!', '지금 놓으면 그대로 발사돼요', '각도부터 맞춰요!');
+        return;
+      }
+      const t1 = diff > 0 ? (diff > 10 ? '많이 올려요!' : '조금 더 올려요!') : (diff < -10 ? '많이 내려요!' : '조금 내려요!');
+      M(1, 'act', diff > 0 ? '▲' : '▼', t1, '지금 ' + a + '° → ' + rec.angle + '°', t1.replace('!', '') + ' → ' + rec.angle + '°');
       return;
     }
     st.steps[0] = 'done';
     const z = st.zone, pw = c.charging ? Math.round(c.power * 10) / 10 : 0;
-    const zt = zoneText(z);
-    if (!c.charging) { st.steps[1] = 'active'; M(2, 'ok', '✅', '각도 딱 맞아요!', 'Space 를 꾹 눌러 초록 구간(' + zt + ')까지!' + (rec.selfRisk ? ' ⚠ 폭발이 내게도 닿아요' : '')); return; }
-    if (st.inPower) { st.steps[1] = 'done'; st.steps[2] = 'active'; M(3, 'go', '🟢', '지금 놓으세요!!', 'Space 를 떼요!'); return; }
+    const zt = zoneText(z), wide = z && z.pHi - z.pLo > WIDE_ZONE;
+    if (!c.charging) {
+      st.steps[1] = 'active';
+      const risk = rec.selfRisk ? ' ⚠ 폭발이 내게도 닿아요' : '';
+      if (wide) M(2, 'ok', '✅', '각도 딱 맞아요!', HOLD + ' 아무 때나 놓아도 맞아요!' + risk, '각도 OK! 꾹 눌렀다 놓아요');
+      else M(2, 'ok', '✅', '각도 딱 맞아요!', HOLD + ' 초록 구간(' + zt + ')까지!' + risk, '힘을 ' + zt + ' 까지 채워요');
+      return;
+    }
+    if (st.inPower) { st.steps[1] = 'done'; st.steps[2] = 'active'; M(3, 'go', '🟢', '지금 놓으세요!!', RELEASE); return; }
     st.steps[1] = 'active';
     if (pw < z.pLo) {
       if (st.slow) M(2, 'act', '⏳', '거의 다 왔어요! 준비~', '천천히 올라가요 · 초록 구간 ' + zt);
-      else M(2, 'act', '⏩', '초록 구간까지 채워요!', '지금 ' + Math.round(pw) + ' → ' + zt);
+      else M(2, 'act', '⏩', '초록 구간까지 채워요!', '지금 ' + Math.round(pw) + ' → ' + zt, '초록 ' + zt + ' 까지! (지금 ' + Math.round(pw) + ')');
     }
-    else if (pw <= z.pHi) { st.steps[1] = 'done'; st.steps[2] = 'active'; M(3, 'go', '🟢', '아슬아슬! 놓아요!!', 'Space 를 떼요!'); }
+    else if (pw <= z.pHi) { st.steps[1] = 'done'; st.steps[2] = 'active'; M(3, 'go', '🟢', '아슬아슬! 놓아요!!', RELEASE); }
+    else if (this._canCancel()) M(2, 'bad', '⚠️', '앗, 너무 세요!', CANCEL + ' 취소하고 다시! 초록 구간(' + zt + ')', '앗, 너무 세요! ' + (tc ? '✋' : 'Esc') + ' 취소');
     else M(2, 'bad', '⚠️', '앗, 너무 세요!', '다음엔 초록 구간(' + zt + ')에서 놓아요');
   }
 };
 
 function curPlayerSafe() { try { return typeof curPlayer === 'function' ? curPlayer() : null; } catch (e) { return null; } }
-/** 힘 구간 글자: 정수로 딱 떨어지면 "62~66", 너무 좁으면 "약 62" */
+/** 힘 구간 글자: 정수로 딱 떨어지면 "62~66", 너무 좁으면 "약 62", 게이지 대부분이 맞는 자리면 "어디서나" */
 function zoneText(z) {
   if (!z) return '';
+  if (z.pHi - z.pLo > WIDE_ZONE) return '어디서나';
   const lo = Math.ceil(z.pLo - 1e-9), hi = Math.floor(z.pHi + 1e-9);
   return hi - lo >= 1 ? lo + '~' + hi : '약 ' + Math.round(z.power);
 }

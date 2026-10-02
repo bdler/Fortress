@@ -12,6 +12,11 @@
  *   3) traj() 가 예측한 폭발 지점이 진짜 시뮬레이션의 첫 폭발(크레이터)과 일치하는지 (임의의 각도/힘)
  *   4) 풀이 시간, 못 맞추는 경우 rec.ok=false (거짓말 X) 인지
  *  를 확인한다. 요구: 일반탄 계열(캐논 0/1 · 미사일 0 · 멀티/에어 0) 명중률 ≥ 95%.
+ *  + 회귀 시나리오 (regressions()):
+ *   - 폭격/눈보라/위성 '창(window)' 캐시가 제자리에서 바뀐 지형에 대해 낡은 값을 돌려주지 않는다 (지형 버전 없이 불러도 · 넘겨도)
+ *   - 해석 해가 전부 막힌 높은 섬/절벽 위 목표도 격자 재탐색으로 풀리고, 그 추천이 진짜 시뮬레이션에서 맞는다
+ *   - ok 인 추천의 힘 구간 폭은 항상 1 이상 (머리카락처럼 얇은 구간은 추천하지 않고 reason 'narrow')
+ *   - zoneText: 정수 구간 · 약 N · 게이지 대부분이 맞는 자리는 '어디서나'
  */
 const { loadSim } = require('./sim-node');
 const srcArg = process.argv.find(a => a.startsWith('--src='));
@@ -57,6 +62,7 @@ const stats = {};
 const stat = k => stats[k] || (stats[k] = { n: 0, ok: 0, hit: 0, zoneN: 0, zoneHit: 0, unreach: 0, far: 0, blocked: 0, ms: [] });
 let trajN = 0, trajBad = 0, trajMax = 0, zoneAtN = 0, zoneAtFail = 0, zoneAtEnds = 0, zoneAtEndsHit = 0;
 const trajWorst = [];
+const angleWin = [], powWin = [];
 
 function params(p, wi, angle, power, facing, wind, seed) {
   return { pid: p.id, weapon: wi, angle, power, x: p.x, y: p.y, facing, wind, seed, item: null };
@@ -112,6 +118,8 @@ function runRuleSet(beginner) {
           continue;
         }
         st.ok++;
+        if (rec.pHi - rec.pLo < 1 - 1e-9) fail(`ok 추천인데 힘 구간이 1 미만: ${key} zone ${rec.pLo}~${rec.pHi}`);
+        angleWin.push(rec.aHi - rec.aLo); powWin.push(rec.pHi - rec.pLo);
         const seedShot = RI(1, 2147483646);
         // 1) 추천값 그대로 쏘기
         const r1 = damaged(terrain, players, params(sh, wi, rec.angle, rec.power, rec.facing, wind, seedShot), tg.id);
@@ -171,7 +179,75 @@ function debugMiss(terrain, players, sh, tg, wi, rec, wind) {
   console.log('   DEBUG target', tg.x, tg.y, 'shooter', sh.x, sh.y, 'pred explosion', tr.land.x.toFixed(1), tr.land.y.toFixed(1), tr.kind, 'band', JSON.stringify(tr.land.band), 'real explosions', JSON.stringify(ex));
 }
 
+/* ---------------- 회귀 시나리오 ---------------- */
+function regressions() {
+  S.setRules(true);
+  const mkP = (gen, id, tank, x) => ({ id, tank, team: 0, x, y: Math.round(gen.heights[x]), facing: 1, angle: 45, hp: S.TANKS[tank].hp, alive: true, sunk: false, ss: 100 });
+
+  // 1) 폭격기 SS: 목표 머리 위에 판을 얹으면 'roof', 그 판을 제자리에서 걷어내면 다시 풀린다 — 바람/위치가 그대로여도 낡은 창을 쓰면 안 된다.
+  //    (a) 지형 버전을 안 넘기는 호출자 (b) 넘기는 호출자(게임: G.terrain.ops.length) 둘 다
+  let n = 0, bad = 0, hits = 0, fresh = 0;
+  for (const seed of [11, 12, 13, 14, 15, 17, 18]) {
+    for (const useKey of [false, true]) {
+      const gen = S.genTerrain(seed), terrain = new S.TerrainMask(gen.mask), xs = S.spawnXs(seed, 2);
+      const sh = mkP(gen, 'me', 'air', xs[0]), tg = mkP(gen, 'tg', 'cannon', xs[1]);
+      sh.facing = tg.x >= sh.x ? 1 : -1;
+      const players = [sh, tg], w = S.TANKS.air.weapons[2], opt = () => useKey ? { terrainKey: terrain.ops.length } : {};
+      const r0 = A.solve(terrain.mask, players, sh, 'tg', w, 0, opt());
+      if (!r0.ok) continue;
+      n++;
+      terrain.mound(tg.x, tg.y - 140, 90);
+      const r1 = A.solve(terrain.mask, players, sh, 'tg', w, 0, opt());
+      terrain.crater(tg.x, tg.y - 140, 95);
+      const r2 = A.solve(terrain.mask, players, sh, 'tg', w, 0, opt());
+      if (r1.ok || r1.reason !== 'roof') { bad++; fail(`slab over the target: expected roof, got ${JSON.stringify([r1.ok, r1.reason])} (seed ${seed}, key ${useKey})`); }
+      if (!r2.ok) { bad++; fail(`slab removed in place: still ${r2.reason} — stale window (seed ${seed}, key ${useKey})`); }
+      else {
+        fresh++;
+        if (damaged(terrain, players, params(sh, 2, r2.angle, r2.power, r2.facing, 0, 777), 'tg').hit) hits++;
+      }
+      // traj() 도 같은 캐시를 쓴다: 판이 다시 생기면 (지형 버전이 바뀜) 착탄 창(band)이 없어지거나 바뀌어야 한다
+      if (useKey) {
+        const t1 = A.traj(terrain.mask, players, sh, sh.facing, r2.angle, r2.power, w, 0, { targetId: 'tg', terrainKey: terrain.ops.length });
+        terrain.mound(tg.x, tg.y - 140, 90);
+        const t2 = A.traj(terrain.mask, players, sh, sh.facing, r2.angle, r2.power, w, 0, { targetId: 'tg', terrainKey: terrain.ops.length });
+        if (t1.hit && t2.hit) { bad++; fail(`traj() still reports a hit after the slab appeared (seed ${seed}) — stale window`); }
+      }
+    }
+  }
+  console.log(`회귀 1 (낡은 창 캐시): ${n} 시나리오, 실패 ${bad}, 걷어낸 뒤 추천 → 실제 명중 ${hits}/${fresh}`);
+  if (n < 6) fail('회귀 1: 시나리오가 너무 적음 ' + n);
+  if (fresh && hits / fresh < 0.8) fail(`회귀 1: 걷어낸 뒤 추천이 실제로 맞지 않음 ${hits}/${fresh}`);
+
+  // 2) 해석 해가 전부 막힌 높은 섬 위 목표 (검토자가 재현한 두 경우): 격자 재탐색으로 풀리고, 그 추천은 진짜로 맞는다
+  const cases = [
+    { seed: 158380, shooter: ['ice', 1094, 528], target: ['cannon', 795, 275], wind: 0, wi: 0 },
+    { seed: 783981, shooter: ['missile', 602, 498], target: ['cannon', 345, 286], wind: 1, wi: 0 }
+  ];
+  let solved = 0, real = 0;
+  for (const c of cases) {
+    const gen = S.genTerrain(c.seed), terrain = new S.TerrainMask(gen.mask);
+    const P = (id, [tank, x, y]) => ({ id, tank, team: 0, x, y, facing: 1, angle: 45, hp: S.TANKS[tank].hp, alive: true, sunk: false, ss: 0 });
+    const sh = P('me', c.shooter), tg = P('tg', c.target);
+    sh.facing = tg.x >= sh.x ? 1 : -1;
+    const players = [sh, tg], w = S.TANKS[sh.tank].weapons[c.wi];
+    const rec = A.solve(terrain.mask, players, sh, 'tg', w, c.wind, {});
+    if (!rec.ok) { fail(`high-island target (seed ${c.seed}): solver says ${rec.reason} but a real shot hits`); continue; }
+    solved++;
+    if (damaged(terrain, players, params(sh, c.wi, rec.angle, rec.power, rec.facing, c.wind, 4242), 'tg').hit) real++;
+    else fail(`high-island target (seed ${c.seed}): recommendation ${rec.angle}/${rec.power} does not hit in the real simulation`);
+  }
+  console.log(`회귀 2 (높은 섬 목표 격자 재탐색): 풀림 ${solved}/${cases.length}, 진짜 명중 ${real}/${solved}`);
+
+  // 3) zoneText
+  const zt = [[{ pLo: 62, pHi: 66.4, power: 64 }, '62~66'], [{ pLo: 62.2, pHi: 62.8, power: 62.5 }, '약 63'], [{ pLo: 1, pHi: 100, power: 50 }, '어디서나'], [{ pLo: 5, pHi: 70, power: 40 }, '어디서나'], [{ pLo: 14, pHi: 60, power: 30 }, '14~60']];
+  for (const [z, want] of zt) { const got = S.zoneText(z); if (got !== want) fail(`zoneText ${JSON.stringify(z)}: want ${want} got ${got}`); }
+  console.log('회귀 3 (zoneText): ' + (fails ? '' : '통과'));
+  S.setRules(false);
+}
+
 const t0 = Date.now();
+regressions();
 runRuleSet(false);
 runRuleSet(true);
 S.setRules(false);
@@ -198,6 +274,10 @@ for (const name of Object.keys(groups)) {
   if (g.zoneN >= 20 && g.zoneHit / g.zoneN < 0.95) fail(`${name} 초록 구간 끝 적중 ${pct(g.zoneHit, g.zoneN)} < 95%`);
 }
 console.log(`\n전체 명중 ${pct(allHit, allOk)} (${allHit}/${allOk}) · 일반탄 계열 ${pct(shellHit, shellOk)} (${shellHit}/${shellOk}) · 초록 구간 끝 ${pct(allZoneHit, allZone)} (${allZoneHit}/${allZone})`);
+{
+  const srt = a => a.slice().sort((x, y) => x - y), qq = (a, f) => a.length ? srt(a)[Math.min(a.length - 1, Math.floor(a.length * f))] : 0;
+  console.log(`추천의 허용 폭: 힘 구간 중앙값 ${qq(powWin, 0.5).toFixed(1)} · 최소 ${Math.min(...powWin).toFixed(1)} · 각도 구간 중앙값 ${qq(angleWin, 0.5)}도 · 각도 폭 0도 ${angleWin.filter(x => x === 0).length}/${angleWin.length}`);
+}
 console.log(`zoneAt (추천 각도 구간 안 다른 각도): 구간 있음 ${zoneAtN - zoneAtFail}/${zoneAtN} · 구간 끝/중앙 적중 ${zoneAtEndsHit}/${zoneAtEnds}`);
 if (zoneAtFail > 0) fail(`zoneAt 이 추천 각도 구간 안에서 해를 못 찾음 (${zoneAtFail}/${zoneAtN})`);
 if (zoneAtEnds && zoneAtEndsHit / zoneAtEnds < 0.97) fail(`zoneAt 구간 적중률 ${zoneAtEndsHit}/${zoneAtEnds} < 97%`);
