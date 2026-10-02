@@ -110,7 +110,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 1px 6px; border-radius: 
 .logo-kr b { color: #7ee0ff; font-weight: normal; }
 .menu { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 14px; align-items: stretch; width: min(380px, 90vw); }
 .menu > * { animation: fadeUp .55s both; }
-.menu > :nth-child(1) { animation-delay: .35s; } .menu > :nth-child(2) { animation-delay: .47s; } .menu > :nth-child(3) { animation-delay: .59s; }
+.menu > :nth-child(1) { animation-delay: .35s; } .menu > :nth-child(2) { animation-delay: .45s; } .menu > :nth-child(3) { animation-delay: .55s; } .menu > :nth-child(4) { animation-delay: .65s; }
 .mbtn { display: flex; align-items: center; gap: 14px; text-align: left; }
 .mbtn .mi { font-size: 34px; width: 50px; height: 50px; display: grid; place-items: center; border-radius: 12px; background: rgba(255,255,255,.28); box-shadow: inset 0 -3px 0 rgba(0,0,0,.15); flex: none; }
 .mbtn .mt { flex: 1; line-height: 1.1; }
@@ -429,12 +429,73 @@ canvas.ravatar { width: 40px; height: 40px; flex: none; }
   #res-quote q { font-size: 15px; }
 }
 
+/* ---------- 비기너 모드 ---------- */
+#btn-beginner .mi.chick { animation: chickHop 2.2s ease-in-out infinite; }
+.gfx-low #btn-beginner .mi.chick { animation: none; }
+@keyframes chickHop { 0%, 60%, 100% { transform: translateY(0); } 70% { transform: translateY(-5px) rotate(-6deg); } 80% { transform: translateY(0); } 88% { transform: translateY(-3px) rotate(5deg); } }
+.lobby-r { display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-width: 0; }
+.begtog { position: relative; display: flex; align-items: center; gap: 10px; flex: none; padding: 5px 14px 5px 9px; border-radius: 16px; border: 3px solid #000; cursor: pointer; color: #dfe6ff; text-align: left;
+  background: linear-gradient(#34427a, #212b55); box-shadow: inset 0 2px 0 rgba(255,255,255,.18), 0 4px 0 #000; transition: transform .1s, filter .12s, background .15s, box-shadow .15s; }
+.begtog:hover { filter: brightness(1.12); transform: translateY(-1px); }
+.begtog input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
+.begtog input:disabled { cursor: default; }
+.begtog .bt-sw { width: 50px; height: 28px; border-radius: 20px; background: #2a3355; border: 2px solid #000; position: relative; flex: none; box-shadow: inset 0 2px 4px rgba(0,0,0,.4); transition: background .15s; }
+.begtog .bt-sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: linear-gradient(#fff, #cfd6ea); transition: left .15s; box-shadow: 0 2px 0 rgba(0,0,0,.4); }
+.begtog .bt-t { min-width: 0; }
+.begtog .bt-t b { display: block; font-weight: normal; font-size: 17px; line-height: 1.15; white-space: nowrap; }
+.begtog .bt-t small { display: block; font-size: 12px; line-height: 1.25; opacity: .85; white-space: nowrap; }
+.begtog.on { color: #fff; background: linear-gradient(#8ef0a4, var(--go) 45%, #1d8f3a); text-shadow: 0 1px 0 rgba(0,0,0,.4);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.45), 0 4px 0 #0c4d1d, 0 0 18px rgba(80,230,120,.5); }
+.begtog.on .bt-sw { background: #0f6a2a; }
+.begtog.on .bt-sw::after { left: 24px; }
+.begtog:focus-within { outline: 3px solid #7ee0ff; outline-offset: 2px; }
+.begtog.ro { cursor: default; }
+.begtog.ro:hover { filter: none; transform: none; }
+.begtog.ro .bt-sw { opacity: .75; }
+.res-sub .rs-beg { display: inline-block; letter-spacing: 1px; margin-left: 4px; padding: 0 10px; border-radius: 10px; background: linear-gradient(#8ef0a4, var(--go) 50%, #1d8f3a); color: #fff; border: 2px solid #000; text-shadow: 0 1px 0 rgba(0,0,0,.4); }
+
+/* 도움말: 비기너 탭 */
+.beg { display: flex; flex-direction: column; gap: 12px; color: #c3cdea; font-size: 14px; line-height: 1.55; word-break: keep-all; overflow-wrap: break-word; }
+.beg em { color: #8dffab; font-style: normal; }
+.beg-hero { display: flex; gap: 14px; align-items: center; padding: 10px 14px; border-radius: 14px; font-size: 15px; background: linear-gradient(135deg, rgba(90,220,120,.22), rgba(255,210,63,.13)); border: 2px solid rgba(120,240,150,.35); }
+.beg-hero .bh-ic { font-size: 38px; width: 56px; height: 56px; display: grid; place-items: center; background: rgba(0,0,0,.28); border-radius: 16px; flex: none; }
+.beg-hero b { display: block; color: var(--gold); font-weight: normal; font-size: 22px; font-family: var(--kr); text-shadow: 0 2px 0 #6b3d00; }
+.beg-fig { border-radius: 16px; border: 3px solid #0a1024; background: #0a1024; padding: 6px; width: min(100%, 560px); margin: 0 auto; }
+.beg-fig svg { display: block; width: 100%; height: auto; max-height: 250px; }
+.beg-fig .fg-t { font-size: 15px; font-family: inherit; paint-order: stroke; stroke: rgba(0,0,0,.6); stroke-width: 4px; stroke-linejoin: round; }
+.beg-fig .fg-w { fill: #fff; } .beg-fig .fg-g { fill: #9dffb4; } .beg-fig .fg-r { fill: #ffd0d0; } .beg-fig .fg-d { fill: #c3cdea; }
+.beg-h { margin: 4px 0 -4px; font-weight: normal; color: var(--gold); font-size: 19px; text-shadow: 0 2px 0 #6b3d00; }
+.beg-steps { display: flex; flex-direction: column; gap: 8px; }
+.bs { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.05); }
+.bs > i { font-style: normal; flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(#ffe57a, #ff9d1a); color: #3a2400; border: 3px solid #000; font-family: var(--kr); font-size: 18px; }
+.bs b, .bk b { display: block; color: #fff; font-weight: normal; font-size: 17px; }
+.bs kbd { margin-right: 3px; }
+.okc { color: #8dffab; }
+/* 키보드용 / 터치용 문구 (body.touch 는 UI.boot 가 터치 지원 기기에 붙인다) */
+.t-only { display: none; }
+body.touch .k-only { display: none; }
+body.touch .t-only { display: inline; }
+.begtog.tip { box-shadow: 0 0 0 3px rgba(255,255,255,.75), 0 0 16px rgba(125,255,154,.9); }
+.beg-keys, .beg-easy { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.bk { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.05); }
+.bk kbd { flex: none; font-size: 22px; padding: 3px 12px; }
+.bk b { font-size: 16px; }
+.beg-easy > div { padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,.05); font-size: 14px; line-height: 1.35; }
+.beg-easy > div > span { float: left; font-size: 26px; width: 38px; height: 38px; margin-right: 8px; display: grid; place-items: center; background: rgba(0,0,0,.3); border-radius: 10px; }
+.beg-easy b { color: #fff; font-weight: normal; }
+.beg-easy small { display: block; color: var(--muted); font-size: 12px; }
+.beg-note { padding: 10px 12px; border-radius: 12px; background: rgba(255,210,63,.09); border: 1px dashed rgba(255,210,63,.4); font-size: 13px; }
+.beg-note b { color: #fff; font-weight: normal; }
+
 /* ---------- 반응형 ---------- */
 @media (max-width: 1100px) {
   .slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .slot.empty { min-height: 180px; }
 }
 @media (max-width: 900px) {
+  #scr-onlineLobby .begtog .bt-t small, #scr-onlineLobby .cnt-l { display: none; }
+  .beg-keys { grid-template-columns: 1fr; }
+  .beg-easy { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rhead { display: none; }
   .rrow, .rrow.full { grid-template-columns: 36px minmax(0, 1.4fr) repeat(3, minmax(0, 1fr)); gap: 6px; }
   .rrow.full .rs:nth-child(4), .rrow.full .rs:nth-child(6), .rrow.full .rs:nth-child(7) { display: none; }
@@ -443,11 +504,21 @@ canvas.ravatar { width: 40px; height: 40px; flex: none; }
   .lobby-tip { display: none; }
 }
 @media (max-width: 600px) {
+  .beg-easy { grid-template-columns: 1fr; }
   .slots { grid-template-columns: 1fr; }
   .two { grid-template-columns: 1fr; }
   .panel h2 { font-size: 22px; }
   .keygrid { grid-template-columns: 1fr; }
   .roomcode small { display: none; }
+}
+@media (max-height: 820px) and (min-width: 561px) {
+  #scr-title { gap: 14px; }
+  .menu { gap: 10px; }
+  .btn.big.mbtn { padding: 9px 22px; }
+}
+@media (max-height: 820px) {
+  /* 화면이 낮으면 맵 선택/시작 버튼 줄을 아래에 붙여 두어 스크롤 없이도 '게임 시작'이 보이게 */
+  .lobby-opts { position: sticky; bottom: -10px; z-index: 3; background: linear-gradient(rgba(0,0,0,.22), rgba(0,0,0,.22)), var(--panel2); box-shadow: 0 -10px 14px rgba(8,12,30,.55); }
 }
 @media (max-height: 820px) and (min-width: 700px) {
   .panel.lobby { padding: 10px 14px; }
@@ -495,7 +566,8 @@ canvas.ravatar { width: 40px; height: 40px; flex: none; }
   .mbtn .mi { width: 36px; height: 36px; font-size: 24px; }
   .btn small { font-size: 11px; }
   .menu-row .btn { padding: 5px 8px; font-size: 14px; }
-  .foot .hint { display: none; }
+  .foot { font-size: 0; }
+  .foot .ver { font-size: 12px; }
   .panel.lobby { padding: 10px; }
   .lobby-h { margin-bottom: 8px; }
   .panel h2 { font-size: 22px; }
@@ -513,6 +585,25 @@ canvas.ravatar { width: 40px; height: 40px; flex: none; }
   .res-title { font-size: 32px; }
   .podium-wrap { width: min(520px, 100%); }
   .rrow { padding: 4px 10px; margin: 3px 0; }
+  /* 낮은 화면(폰 가로): 맵 선택 + 시작 줄을 한 줄로 작게 */
+  .lobby-opts { gap: 8px; padding: 4px 8px; margin-top: 6px; }
+  .opt { gap: 0; }
+  .opt-l { display: none; }
+  .maps { flex-wrap: nowrap; gap: 5px; }
+  .mp { width: 58px; font-size: 11px; border-width: 2px; border-radius: 9px; box-shadow: 0 3px 0 #000; }
+  .mp canvas.mthumb { height: 24px; }
+  .mp.on::after { width: 14px; height: 14px; font-size: 9px; border-width: 1px; top: 1px; right: 2px; }
+  .opt-r { gap: 10px; }
+  .tog { font-size: 15px; }
+  .startbtn { padding: 5px 16px; font-size: 18px; }
+  .begtog { padding: 3px 10px 3px 7px; gap: 8px; border-width: 2px; }
+  .begtog .bt-t b { font-size: 15px; }
+  .begtog .bt-t small { font-size: 11px; }
+  .begtog .bt-sw { width: 42px; height: 24px; }
+  .begtog .bt-sw::after { width: 16px; height: 16px; }
+  .begtog.on .bt-sw::after { left: 20px; }
+  .beg-fig svg { max-height: 200px; }
+  .beg-hero { padding: 6px 10px; } .beg-hero .bh-ic { width: 44px; height: 44px; font-size: 30px; } .beg-hero b { font-size: 18px; }
 }
 </style>
 
@@ -834,6 +925,169 @@ body.touch #touch:not(.hidden) { display: flex; }
   .ibtn .cnt { min-width: 14px; height: 14px; font-size: 9px; line-height: 10px; right: -4px; bottom: -4px; }
   .ibtn kbd { display: none; }
 }
+
+/* ---------- 조준 도우미 (비기너) ---------- */
+/* 파워 게이지: 초록 구간 + 숫자 + 들어오면 반짝 */
+.pz-t { font-family: 'Black Han Sans', sans-serif; font-weight: normal; font-size: 12px; letter-spacing: 0; color: #04210f; padding: 0 9px; margin-left: 8px; line-height: 16px; align-self: center;
+  background: linear-gradient(#c4ffd3, #4bdc72); border-radius: 9px; border: 1px solid #05070f; box-shadow: 0 0 7px rgba(75,220,114,.75); white-space: nowrap; }
+.pz-t[hidden], #hud-pzone[hidden], #btn-assist[hidden], #co-bar[hidden] { display: none !important; }
+.pz-t.dim { opacity: .55; box-shadow: none; filter: saturate(.6); }
+.pz-t.in { animation: zoneGlow .3s infinite alternate; }
+.gauge.power s { position: absolute; top: -3px; bottom: -3px; min-width: 9px; z-index: 1; border-radius: 5px; text-decoration: none; pointer-events: none;
+  background: repeating-linear-gradient(135deg, rgba(255,255,255,.28) 0 5px, transparent 5px 10px), linear-gradient(#c4ffd3, #4bdc72 55%, #1d9c48);
+  border: 2px solid #eaffef; box-shadow: 0 0 0 1px #05070f, 0 0 9px rgba(75,220,114,.95); }
+.gauge.power s::after { content: ''; position: absolute; left: 50%; top: -9px; margin-left: -5px; border: 5px solid transparent; border-top: 6px solid #7dff9a; border-bottom: 0; filter: drop-shadow(0 1px 0 #05070f); }
+.gauge.power s.dim { opacity: .42; filter: saturate(.5); box-shadow: 0 0 0 1px #05070f; }
+.gauge.power s.in { animation: zoneGlow .3s infinite alternate; box-shadow: 0 0 0 1px #05070f, 0 0 18px 5px #7dff9a; }
+#hud.inzone .gauge.power { box-shadow: inset 0 2px 4px rgba(0,0,0,.8), 0 0 0 2px #7dff9a, 0 0 20px rgba(125,255,154,.95); }
+@keyframes zoneGlow { to { filter: brightness(1.35) saturate(1.2); } }
+
+/* HUD 버튼 */
+.hbtns .assist-btn { position: relative; }
+.hbtns .assist-btn .ai { filter: grayscale(.85) opacity(.75); }
+.hbtns .assist-btn.on .ai { filter: none; }
+.hbtns .assist-btn i { position: absolute; right: -4px; bottom: -5px; min-width: 13px; height: 13px; padding: 0 2px; border-radius: 7px; font: normal 9px/12px 'Black Han Sans', sans-serif; text-align: center;
+  color: #fff; background: #56648c; border: 1px solid #05070f; pointer-events: none; }
+.hbtns .assist-btn.on i { background: #37c95b; color: #052b10; }
+.hbtns .assist-btn.pulse { animation: assistPulse 1.2s ease-in-out 3; }
+@keyframes assistPulse { 50% { box-shadow: 0 0 0 3px #7dff9a, 0 0 14px #7dff9a; } }
+
+/* 코치 카드: 큰 글씨, 3단계, 지금 할 일 */
+#coach { --tone: #7ee0ff; --tone2: rgba(126,224,255,.22); position: fixed; left: 50%; bottom: calc(var(--hudh) + 12px); z-index: 7; transform: translateX(-50%);
+  width: min(600px, calc(100vw - 24px)); padding: 8px 12px 10px; border-radius: 18px; pointer-events: none; font-family: 'Jua', 'Black Han Sans', sans-serif; color: #fff;
+  background: linear-gradient(rgba(26,36,76,.95), rgba(10,15,36,.95)); border: 3px solid var(--tone);
+  box-shadow: 0 0 0 2px #05070f, 0 8px 22px rgba(0,0,0,.55), 0 0 22px var(--tone2), inset 0 1px 0 rgba(255,255,255,.2); transition: border-color .2s, box-shadow .2s; }
+#coach.hidden, #hud.hidden ~ #coach { display: none; }
+#coach[data-side="l"] { left: 12px; transform: none; }
+#coach[data-side="r"] { left: auto; right: 12px; transform: none; }
+#coach[data-tone="act"]  { --tone: #ffd23f; --tone2: rgba(255,210,63,.25); }
+#coach[data-tone="warn"] { --tone: #ffa23b; --tone2: rgba(255,162,59,.3); }
+#coach[data-tone="ok"]   { --tone: #4bdc72; --tone2: rgba(75,220,114,.3); }
+#coach[data-tone="go"]   { --tone: #7dff9a; --tone2: rgba(125,255,154,.75); animation: coachGo .35s infinite alternate; }
+#coach[data-tone="bad"]  { --tone: #ff6b6b; --tone2: rgba(255,107,107,.4); }
+@keyframes coachGo { to { transform: translateX(-50%) scale(1.03); } }
+#coach[data-side="l"][data-tone="go"], #coach[data-side="r"][data-tone="go"] { animation-name: coachGoSide; }
+@keyframes coachGoSide { to { transform: scale(1.03); } }
+#coach button { pointer-events: auto; font-family: inherit; cursor: pointer; color: #fff; border: 2px solid #05070f; border-radius: 10px; background: linear-gradient(#45568e, #26305a);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.22), 0 2px 0 #05070f; touch-action: manipulation; }
+#coach button:active { transform: translateY(2px); }
+#coach kbd { font: 10px/14px 'Black Han Sans', sans-serif; min-width: 0; padding: 0 5px; border-radius: 5px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.25); color: #ffe89a; }
+.co-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.co-tg { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; font-size: 15px; white-space: nowrap; overflow: hidden; }
+.co-tg em { font-style: normal; flex: none; padding: 1px 9px; border-radius: 10px; background: #e53935; border: 2px solid #05070f; font-size: 14px; }
+.co-tg b { font-weight: normal; font-size: 18px; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 2px 0 #000; }
+.co-btns { display: flex; gap: 6px; flex: none; }
+.co-head button { height: 28px; padding: 0 9px; font-size: 13px; white-space: nowrap; }
+.co-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 7px; }
+.co-step { position: relative; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 12px; background: rgba(0,0,0,.35); border: 2px solid rgba(255,255,255,.14); min-width: 0; opacity: .6; transition: opacity .2s, background .2s, border-color .2s; }
+.co-step i { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font: normal 15px/1 'Black Han Sans', sans-serif; background: #56648c; border: 2px solid #05070f; }
+.co-step span { font-size: 17px; text-shadow: 0 2px 0 #000; }
+.co-step b { margin-left: auto; font: normal 12px/1 'Black Han Sans', sans-serif; color: #cfe0ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.co-step[data-st="active"] { opacity: 1; background: linear-gradient(rgba(255,255,255,.2), rgba(255,255,255,.06)); border-color: var(--tone); box-shadow: 0 0 12px var(--tone2); }
+.co-step[data-st="active"] i { background: var(--tone); color: #1a1a1a; }
+.co-step[data-st="done"] { opacity: 1; border-color: #4bdc72; background: rgba(75,220,114,.18); }
+.co-step[data-st="done"] i { background: #4bdc72; color: transparent; position: relative; }
+.co-step[data-st="done"] i::after { content: '✓'; position: absolute; inset: 0; display: grid; place-items: center; color: #06280f; font-size: 16px; }
+.co-step[data-st="done"] b { color: #9cf5b4; }
+.co-msg { display: flex; align-items: center; gap: 10px; }
+.co-ic { flex: none; width: 54px; height: 54px; border-radius: 16px; display: grid; place-items: center; font-size: 34px; line-height: 1; background: rgba(0,0,0,.4); border: 3px solid var(--tone); text-shadow: 0 3px 0 rgba(0,0,0,.6); }
+#coach[data-tone="act"] .co-ic { animation: icBob .6s infinite alternate ease-in-out; }
+@keyframes icBob { to { transform: translateY(-4px); } }
+.co-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.co-tx b { font-weight: normal; font-size: 29px; line-height: 1.1; text-shadow: 0 3px 0 #000, 0 0 12px var(--tone2); -webkit-text-stroke: .5px #000; }
+.co-tx small { font-size: 16px; color: #dfe9ff; text-shadow: 0 2px 0 #000; }
+#coach[data-tone="go"] .co-tx b { color: #eaffef; }
+#coach[data-tone="bad"] .co-tx b { color: #ffd0d0; }
+#co-auto { flex: none; height: 46px; padding: 0 12px; font-size: 15px; line-height: 1.1; text-align: left; display: flex; align-items: center; gap: 6px; background: linear-gradient(#57d67c, #1f8f45); }
+#co-auto span { max-width: 4.6em; }
+#co-auto[hidden] { display: none; }
+.co-bar { position: relative; height: 14px; margin-top: 8px; border-radius: 8px; background: #05070f; border: 2px solid #000; overflow: visible; }
+.co-bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 6px 0 0 6px; background: linear-gradient(90deg, #3fa7ff, #4bdc72 35%, #ffd23f 65%, #ff5252); background-size: 560px 100%; }
+.co-bar s { position: absolute; top: -4px; bottom: -4px; border-radius: 4px; border: 2px solid #eaffef; background: repeating-linear-gradient(135deg, rgba(255,255,255,.3) 0 5px, transparent 5px 10px), linear-gradient(#c4ffd3, #4bdc72); box-shadow: 0 0 9px #4bdc72; text-decoration: none; min-width: 8px; }
+.co-bar s.in { animation: zoneGlow .3s infinite alternate; box-shadow: 0 0 16px 4px #7dff9a; }
+.co-bar u { position: absolute; top: -5px; bottom: -5px; width: 5px; margin-left: -2.5px; border-radius: 3px; background: #fff; box-shadow: 0 0 8px #fff; text-decoration: none; display: none; }
+#coach.charging .co-bar u { display: block; }
+/* 1단계(궤적만): 문장 한 줄만 */
+#coach[data-level="1"] .co-head .co-tg, #coach[data-level="1"] .co-steps, #coach[data-level="1"] #co-auto, #coach[data-level="1"] .co-bar, #coach[data-level="1"] #co-tnext { display: none; }
+#coach[data-level="1"] .co-head { justify-content: flex-end; margin-bottom: 4px; }
+#coach[data-level="1"] .co-ic { width: 44px; height: 44px; font-size: 26px; }
+#coach[data-level="1"] .co-tx b { font-size: 22px; }
+
+@media (max-width: 1100px) { #coach { width: min(520px, calc(100vw - 24px)); } .co-tx b { font-size: 25px; } }
+/* 낮은 화면(모바일 가로): 한 줄짜리 얇은 바 — 탱크·조준 가이드를 가리지 않도록 */
+@media (max-height: 520px) {
+  #coach { bottom: calc(var(--hudh) + 8px); width: min(520px, calc(100vw - 268px)); padding: 3px 6px 4px; border-width: 2px; border-radius: 12px; display: grid; grid-template-columns: auto 1fr auto; gap: 0 6px; align-items: center; }
+  #coach.hidden { display: none; }
+  .co-head { display: contents; }
+  .co-tg { display: none; }
+  .co-btns { grid-column: 3; grid-row: 1; gap: 3px; }
+  .co-head button { height: 32px; padding: 0 6px; font-size: 13px; }
+  .co-head button kbd, .co-un { display: none; }
+  .co-steps { grid-column: 1; grid-row: 1; margin: 0; gap: 3px; display: flex; }
+  .co-step { padding: 0; border: 0; background: none; box-shadow: none !important; gap: 0; }
+  .co-step span, .co-step b { display: none; }
+  .co-step i { width: 20px; height: 20px; font-size: 12px; }
+  .co-step[data-st="done"] i::after { font-size: 12px; }
+  .co-msg { grid-column: 2; grid-row: 1; gap: 6px; min-width: 0; }
+  .co-ic { width: 32px; height: 32px; font-size: 20px; border-radius: 10px; border-width: 2px; }
+  .co-tx b { font-size: 17px; text-shadow: 0 2px 0 #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .co-tx small { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #co-auto { height: 32px; padding: 0 7px; font-size: 12px; }
+  #co-auto span { display: none; }
+  .co-bar { grid-column: 1 / 4; grid-row: 2; height: 8px; margin-top: 4px; border-width: 1px; }
+  .co-bar s, .co-bar u { top: -3px; bottom: -3px; }
+  #coach[data-level="1"] { grid-template-columns: 1fr auto; }
+  #coach[data-level="1"] .co-msg { grid-column: 1; }
+  #coach[data-level="1"] .co-btns { grid-column: 2; }
+  #coach[data-level="1"] .co-ic { width: 28px; height: 28px; font-size: 17px; }
+  #coach[data-level="1"] .co-tx b { font-size: 15px; }
+  .pz-t { font-size: 10px; line-height: 12px; padding: 0 6px; margin-left: 4px; }
+  .hbtns .assist-btn { width: 26px; height: 22px; font-size: 13px; }
+  .hbtns .assist-btn i { min-width: 10px; height: 10px; font-size: 8px; line-height: 9px; right: -3px; bottom: -3px; }
+  .gauge.power s { top: -2px; bottom: -2px; min-width: 6px; border-width: 1px; }
+  .gauge.power s::after { top: -7px; }
+}
+@media (max-width: 700px) and (min-height: 521px) { #coach { width: calc(100vw - 16px); } }
+body.touch .hbtns .assist-btn { width: 32px; height: 28px; }
+
+/* 터치: 키보드 글자(H·T·G) 배지는 숨기고, 버튼은 손가락 크기(44px)로 */
+body.touch #coach kbd { display: none; }
+body.touch #coach button { min-height: 44px; }
+body.touch .co-head button, body.touch #co-auto, body.touch #co-on { height: 44px; }
+/* 턴 넘기기는 도우미 버튼과 떨어뜨리고, 한 번 누르면 '한 번 더' 로 바뀐다 */
+body.touch .hbtns #btn-skip { margin-left: 8px; }
+.hbtns #btn-skip.arm { background: linear-gradient(#ffe57a, #ff9d1a); color: #3a2400; animation: assistPulse .5s ease-in-out infinite; }
+
+/* 코치 카드: 좁은 화면용 한 줄 문장(숫자 포함)과 짧은 버튼 글자 */
+.co-c, .co-s { display: none; }
+#co-on[hidden] { display: none !important; }
+/* 도우미를 꺼 둔 비기너 턴: '다시 켜기' 한 줄 */
+#coach[data-level="0"] { width: auto; max-width: min(470px, calc(100vw - 24px)); padding: 6px 10px 6px 8px; }
+#coach[data-level="0"] .co-head, #coach[data-level="0"] .co-steps, #coach[data-level="0"] #co-auto, #coach[data-level="0"] .co-bar { display: none; }
+#coach[data-level="0"] .co-ic { width: 40px; height: 40px; font-size: 24px; border-radius: 12px; }
+#coach[data-level="0"] .co-tx b { font-size: 21px; }
+#coach[data-level="0"] .co-tx small { font-size: 14px; }
+#co-on { flex: none; height: 46px; padding: 0 14px; font-size: 18px; line-height: 1.1; display: flex; align-items: center; gap: 6px; background: linear-gradient(#57d67c, #1f8f45); }
+@media (max-height: 520px) {
+  .co-c { display: block; }
+  #co-text, .co-l { display: none; }
+  .co-s { display: inline; }
+  .co-tx b.co-c { font-size: 17px; line-height: 1.1; text-shadow: 0 2px 0 #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-text-stroke: .4px #000; }
+  #co-auto span.co-s { display: inline; max-width: none; }
+  #co-auto span.co-l { display: none; }
+  #co-on { height: 32px; padding: 0 9px; font-size: 14px; }
+  #coach[data-level="0"] { grid-template-columns: 1fr; max-width: min(420px, calc(100vw - 268px)); }
+  #coach[data-level="0"] .co-msg { grid-column: 1; }
+  #coach[data-level="0"] .co-tx b.co-c { font-size: 16px; }
+  #coach[data-level="0"] .co-tx small { display: none; }
+}
+
+/* 힘 채우기 취소 (✋): 채우는 중에만 왼쪽 패드 위에 나타난다 — 발사 버튼을 누른 손과 다른 손가락으로 누른다 */
+.tpad.left { position: relative; }
+.tpad .tcancel { display: none; position: absolute; left: 0; bottom: calc(100% + 10px); width: auto; height: 46px; padding: 0 18px 0 14px; border-radius: 23px; align-items: center; gap: 6px; font-size: 22px; white-space: nowrap;
+  background: linear-gradient(#ffe57a, #ff9d1a); color: #3a2400; border-color: #000; }
+.tpad .tcancel small { font: normal 17px 'Jua', 'Black Han Sans', sans-serif; }
+#touch.charging .tcancel { display: flex; animation: assistPulse 1s ease-in-out infinite; }
 </style>
 
 </head>
@@ -857,6 +1111,7 @@ body.touch #touch:not(.hidden) { display: flex; }
   </div>
   <div class="menu">
     <button id="btn-local" class="btn big mbtn"><span class="mi">🎮</span><span class="mt">로컬 대전<small>한 PC에서 · CPU와 함께 최대 4명</small></span></button>
+    <button id="btn-beginner" class="btn big go mbtn"><span class="mi chick">🐣</span><span class="mt">비기너로 시작<small>어린이도 쉬워요 · 각도와 힘을 알려줘요</small></span></button>
     <button id="btn-online" class="btn big alt mbtn"><span class="mi">🌐</span><span class="mt">온라인 대전<small>최대 4명 · 방 코드로 입장</small></span></button>
     <div class="menu-row">
       <button id="btn-help" class="btn sub">📖 도움말 · 도감</button>
@@ -869,7 +1124,11 @@ body.touch #touch:not(.hidden) { display: flex; }
 <!-- 로컬 로비 -->
 <section id="scr-lobby" class="screen">
   <div class="panel lobby">
-    <div class="lobby-h"><button class="btn sm btn-back">◀ 메인</button><h2><span class="h-ic">⚔</span> 로컬 대전 설정</h2><span class="lobby-tip">슬롯을 눌러 탱크를 고르세요</span></div>
+    <div class="lobby-h"><button class="btn sm btn-back">◀ 메인</button><h2><span class="h-ic">⚔</span> 로컬 대전 설정</h2>
+      <div class="lobby-r">
+        <label class="begtog" id="local-beg-box" title="쉬운 규칙 + 각도·힘 안내"><input type="checkbox" id="local-beginner"><span class="bt-sw"></span><span class="bt-t"><b>🐣 비기너 모드</b><small id="local-beg-desc">쉬운 규칙 · 각도와 힘을 알려줘요</small></span></label>
+      </div>
+    </div>
     <div class="slots" id="local-slots"></div>
     <div class="lobby-opts">
       <div class="opt"><div class="opt-l">전장 선택</div><div class="maps" id="local-maps"></div></div>
@@ -909,7 +1168,9 @@ body.touch #touch:not(.hidden) { display: flex; }
     <div class="lobby-h">
       <button class="btn sm btn-back">◀ 나가기</button>
       <div class="roomcode"><small>방 코드</small><span class="code" id="room-code" title="클릭해서 복사">----</span><button id="room-copy" class="ibtn sm" title="복사">⧉</button></div>
-      <span class="cnt"><i id="net" title="서버 연결 상태"></i><span class="cnt-l">인원</span><b id="on-count">1</b>/4</span>
+      <div class="lobby-r">
+        <label class="begtog" id="on-beg-box" title="방장이 정해요"><input type="checkbox" id="on-beginner" disabled><span class="bt-sw"></span><span class="bt-t"><b>🐣 비기너 모드</b><small id="on-beg-desc">방장이 정해요</small></span></label>
+        <span class="cnt"><i id="net" title="서버 연결 상태"></i><span class="cnt-l">인원</span><b id="on-count">1</b>/4</span></div>
     </div>
     <div class="slots" id="on-slots"></div>
     <div class="lobby-opts">
@@ -946,7 +1207,7 @@ body.touch #touch:not(.hidden) { display: flex; }
 
 <!-- 모바일 터치 조작 -->
 <div id="touch" class="hidden">
-  <div class="tpad left"><button data-touch="left">◀</button><button data-touch="right">▶</button></div>
+  <div class="tpad left"><button data-touch="left">◀</button><button data-touch="right">▶</button><button data-cancel class="tcancel" type="button" title="힘 채우기 취소 (Esc)">✋<small>취소</small></button></div>
   <div class="tpad right"><div class="updown"><button data-touch="up">▲</button><button data-touch="down">▼</button></div><button data-touch="fire" class="fire">발사</button></div>
 </div>
 
@@ -965,8 +1226,8 @@ body.touch #touch:not(.hidden) { display: flex; }
     <i class="screw tl"></i><i class="screw tr"></i><i class="screw bl"></i><i class="screw br"></i>
     <div class="dial"><canvas id="hud-angle" width="120" height="120"></canvas><b id="hud-angle-t">45°</b></div>
     <div class="gauges">
-      <div class="glabel"><span>POWER</span><em id="hud-live"></em><b id="hud-power-t">0</b></div>
-      <div class="gauge power"><i id="hud-power"></i><u id="hud-power-head"></u><div class="ticks"></div><em id="hud-lastpower" title="지난 파워"></em></div>
+      <div class="glabel"><span>POWER</span><em id="hud-live"></em><strong id="hud-pzone-t" class="pz-t" hidden></strong><b id="hud-power-t">0</b></div>
+      <div class="gauge power"><i id="hud-power"></i><s id="hud-pzone" hidden><small></small></s><u id="hud-power-head"></u><div class="ticks"></div><em id="hud-lastpower" title="지난 파워"></em></div>
       <div class="gscale"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
       <div class="glabel mv"><span>MOVE</span><b id="hud-move-t"></b></div>
       <div class="gauge move"><i id="hud-move"></i></div>
@@ -986,13 +1247,36 @@ body.touch #touch:not(.hidden) { display: flex; }
       <b id="hud-timer-t">25</b>
     </div>
     <div class="hbtns">
+      <button id="btn-assist" class="assist-btn" title="조준 도우미 (H)" hidden><span class="ai">🎯</span><i id="assist-lv">0</i></button>
       <button id="btn-emote" title="감정 표현 (7·8·9·0)">😀</button>
       <button id="btn-view" title="전체 보기 (V)">🔍</button>
-      <button id="btn-skip" title="턴 넘기기 (Tab)">⏭</button>
       <button id="btn-mute" title="소리">🔊</button>
+      <button id="btn-skip" title="턴 넘기기 (Tab)">⏭</button>
       <button id="btn-quit" title="나가기">⏏</button>
     </div>
   </div>
+</div>
+<!-- 조준 도우미 코치 카드 (내용은 View.updateCoach 가 채움) -->
+<div id="coach" class="hidden" data-tone="info" data-level="2" data-side="c">
+  <div class="co-head">
+    <span class="co-tg" id="co-tg"><em>🎯 목표</em><b id="co-tg-n"></b></span>
+    <span class="co-btns">
+      <button id="co-tnext" type="button" title="다른 목표 (T) · 화면의 적 탱크를 눌러도 돼요">🔄 <kbd>T</kbd></button>
+      <button id="co-off" type="button" title="도우미 단계 바꾸기 (H)">🎯 <span id="co-lv">2</span><span class="co-un">단계</span> <kbd>H</kbd></button>
+    </span>
+  </div>
+  <div class="co-steps" id="co-steps">
+    <div class="co-step" id="co-s1" data-st="active"><i>1</i><span>각도</span><b id="co-s1v">–</b></div>
+    <div class="co-step" id="co-s2" data-st="todo"><i>2</i><span>힘</span><b id="co-s2v">–</b></div>
+    <div class="co-step" id="co-s3" data-st="todo"><i>3</i><span>발사</span><b><span class="k-only">Space 떼기</span><span class="t-only">손 떼기</span></b></div>
+  </div>
+  <div class="co-msg">
+    <span class="co-ic" id="co-ic">▲</span>
+    <div class="co-tx"><b id="co-text"></b><b id="co-ctext" class="co-c"></b><small id="co-sub"></small></div>
+    <button id="co-auto" type="button" title="추천 각도로 포신을 자동으로 맞춰요 (G)">🎯 <span class="co-l">각도 자동 맞추기</span><span class="co-s">자동</span> <kbd>G</kbd></button>
+    <button id="co-on" type="button" title="조준 도우미 켜기 (H)" hidden>🎯 <span>켜기</span> <kbd>H</kbd></button>
+  </div>
+  <div class="co-bar" id="co-bar" hidden><i id="co-bar-fill"></i><s id="co-bar-zone"></s><u id="co-bar-mark"></u></div>
 </div>
 <!-- 상단: 턴 순서 -->
 <div id="turnbar"></div>
@@ -1006,6 +1290,7 @@ body.touch #touch:not(.hidden) { display: flex; }
     <div class="m-h"><h2>📖 도움말</h2><button class="m-x" data-close="help" title="닫기">✕</button></div>
     <div class="tabs" id="help-tabs">
       <button class="tab on" data-tab="keys">🎮 조작법</button>
+      <button class="tab" data-tab="beginner">🐣 비기너</button>
       <button class="tab" data-tab="dex">🛡 탱크 도감</button>
       <button class="tab" data-tab="items">🎁 아이템</button>
       <button class="tab" data-tab="rules">📜 규칙</button>
@@ -1020,9 +1305,80 @@ body.touch #touch:not(.hidden) { display: flex; }
           <div class="kg"><div class="kk"><kbd>4</kbd><kbd>5</kbd><kbd>6</kbd></div><div class="kd"><b>아이템</b>듀얼 · 파워업 · 회복</div></div>
           <div class="kg"><div class="kk"><kbd>7</kbd><kbd>8</kbd><kbd>9</kbd><kbd>0</kbd></div><div class="kd"><b>감정 표현</b>말풍선으로 도발/응원</div></div>
           <div class="kg"><div class="kk"><kbd>Tab</kbd></div><div class="kd"><b>턴 넘기기</b>이동만 하고 넘길 때</div></div>
+          <div class="kg"><div class="kk"><kbd>Esc</kbd></div><div class="kd"><b>힘 채우기 취소</b>잘못 눌렀을 때 (비기너·연습)</div></div>
           <div class="kg"><div class="kk"><kbd>V</kbd></div><div class="kd"><b>카메라</b>전체 보기 ↔ 따라가기</div></div>
           <div class="kg"><div class="kk"><kbd class="w">🖱 휠</kbd></div><div class="kd"><b>줌</b>마우스 휠로 확대/축소</div></div>
           <div class="kg"><div class="kk"><kbd class="w">📱 터치</kbd></div><div class="kd"><b>모바일</b>화면 버튼으로 이동/각도/발사</div></div>
+        </div>
+      </div>
+      <div class="tabpane" data-pane="beginner">
+        <div class="beg">
+          <div class="beg-hero"><div class="bh-ic">🐣</div><div><b>비기너 모드</b>처음이어도 괜찮아요! 규칙은 쉽게, <em>각도</em>와 <em>힘</em>은 화면이 알려줘요.</div></div>
+          <div class="beg-fig">
+            <svg viewBox="0 0 560 256" role="img" aria-label="각도와 힘 맞추는 방법 그림">
+              <defs>
+                <linearGradient id="bgSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a8fe0"/><stop offset="1" stop-color="#9fd4ff"/></linearGradient>
+                <linearGradient id="bgPow" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3a8dff"/><stop offset=".55" stop-color="#ffd23f"/><stop offset="1" stop-color="#ff5252"/></linearGradient>
+              </defs>
+              <rect x="0" y="0" width="560" height="196" rx="14" fill="url(#bgSky)"/>
+              <path d="M0 196 V168 Q90 150 170 164 T330 170 T470 150 Q520 142 560 152 V196 Z" fill="#4fa82f"/>
+              <path d="M0 196 V184 Q140 172 280 182 T560 176 V196 Z" fill="#3b8a25"/>
+              <path d="M104 148 L170.9 87.8 A90 90 0 0 0 151.7 71.6 Z" fill="rgba(80,255,120,.5)" stroke="#2bd35e" stroke-width="2.5" stroke-linejoin="round"/>
+              <line x1="104" y1="148" x2="172" y2="70" stroke="#7dff9a" stroke-width="3.5" stroke-dasharray="8 6" stroke-linecap="round"/>
+              <line x1="104" y1="148" x2="200" y2="148" stroke="#fff" stroke-opacity=".75" stroke-width="2" stroke-dasharray="3 5"/>
+              <path d="M164 148 A60 60 0 0 0 142.6 102" fill="none" stroke="#fff" stroke-width="2.5"/>
+              <text x="172" y="136" class="fg-t fg-w">50°</text>
+              <g transform="translate(104 148) rotate(-50)"><rect x="0" y="-6" width="50" height="12" rx="6" fill="#ffd23f" stroke="#3a1700" stroke-width="3"/></g>
+              <rect x="62" y="146" width="84" height="26" rx="12" fill="#37c95b" stroke="#1d5a2a" stroke-width="3"/>
+              <ellipse cx="104" cy="146" rx="26" ry="15" fill="#5be07f" stroke="#1d5a2a" stroke-width="3"/>
+              <circle cx="96" cy="143" r="3.2" fill="#123"/><circle cx="112" cy="143" r="3.2" fill="#123"/>
+              <path d="M98 150 Q104 155 110 150" fill="none" stroke="#123" stroke-width="2.4" stroke-linecap="round"/>
+              <g fill="#ffb03a" stroke="#3a1700" stroke-width="2.5"><circle cx="76" cy="174" r="8"/><circle cx="104" cy="174" r="8"/><circle cx="132" cy="174" r="8"/></g>
+              <path d="M138 108 Q300 -88 456 148" fill="none" stroke="#fff" stroke-width="5" stroke-dasharray="1 11" stroke-linecap="round"/>
+              <g transform="translate(470 156)">
+                <circle r="30" fill="rgba(255,82,82,.18)" stroke="#ff5252" stroke-width="3" stroke-dasharray="6 5"/>
+                <rect x="-22" y="-2" width="44" height="18" rx="8" fill="#ff8a6a" stroke="#6a1a12" stroke-width="3"/>
+                <ellipse cx="0" cy="-4" rx="14" ry="9" fill="#ffab90" stroke="#6a1a12" stroke-width="3"/>
+                <g stroke="#ff2f2f" stroke-width="3.5" stroke-linecap="round"><line x1="-42" y1="-4" x2="-28" y2="-4"/><line x1="28" y1="-4" x2="42" y2="-4"/><line x1="0" y1="-46" x2="0" y2="-32"/></g>
+              </g>
+              <text x="470" y="100" class="fg-t fg-r" text-anchor="middle">🎯 목표</text>
+              <text x="86" y="52" class="fg-t fg-g" text-anchor="middle">① 각도 ▲▼</text>
+              <text x="300" y="62" class="fg-t fg-w" text-anchor="middle">점선 = 날아갈 길</text>
+              <rect x="20" y="210" width="520" height="22" rx="11" fill="#0a1024" stroke="#000" stroke-width="3"/>
+              <rect x="25" y="215" width="510" height="12" rx="6" fill="url(#bgPow)" opacity=".6"/>
+              <rect x="318" y="210" width="112" height="22" rx="7" fill="rgba(80,255,120,.38)" stroke="#2bd35e" stroke-width="3.5"/>
+              <path d="M374 206 l-8 -13 h16 z" fill="#fff" stroke="#000" stroke-width="2"/>
+              <text x="22" y="251" class="fg-t fg-d">힘 0</text>
+              <text x="374" y="251" class="fg-t fg-g k-only" text-anchor="middle">② 초록 구간까지 Space 꾹!</text>
+              <text x="374" y="251" class="fg-t fg-g t-only" text-anchor="middle">② 초록 구간까지 발사 꾹!</text>
+              <text x="538" y="251" class="fg-t fg-d" text-anchor="end">100</text>
+            </svg>
+          </div>
+          <h3 class="beg-h">이렇게 쏘면 돼요</h3>
+          <div class="beg-steps">
+            <div class="bs"><i>1</i><div><b>각도 맞추기</b><span class="k-only"><kbd>↑</kbd><kbd>↓</kbd> 로</span><span class="t-only">화면의 <em>▲ ▼</em> 버튼으로</span> 포신을 움직여요. <em>초록 부채꼴</em> 안에 들어오면 <span class="okc">✅ 딱 맞아요!</span> 어려우면 <span class="k-only"><kbd>G</kbd> 를 눌러요.</span><span class="t-only">카드의 <em>🎯 자동</em> 버튼을 눌러요.</span> 자동으로 맞춰줘요.</div></div>
+            <div class="bs"><i>2</i><div><b>힘 채우기</b><span class="k-only"><kbd class="w">Space</kbd> 를 꾹 누르면</span><span class="t-only">빨간 <em>발사</em> 버튼을 꾹 누르면</span> 힘이 차올라요. 힘 게이지의 <em>초록 구간</em>에 들어오면 &quot;지금 놓으세요!&quot;</div></div>
+            <div class="bs"><i>3</i><div><b>발사!</b><span class="k-only"><kbd class="w">Space</kbd> 에서 손을 떼면</span><span class="t-only">발사 버튼에서 손을 떼면</span> 쾅! 점선 끝의 동그라미가 포탄이 떨어질 곳이에요. 잘못 눌렀으면 힘을 채우는 중에 <span class="k-only"><kbd>Esc</kbd> 를 눌러요.</span><span class="t-only"><em>✋ 취소</em> 버튼을 눌러요.</span> 발사하지 않고 처음부터 다시 해요.</div></div>
+          </div>
+          <h3 class="beg-h"><span class="k-only">조준 도우미 키</span><span class="t-only">조준 도우미 버튼</span></h3>
+          <div class="beg-keys">
+            <div class="bk"><kbd><span class="k-only">H</span><span class="t-only">🎯</span></kbd><div><b>도우미 단계</b><span class="k-only">끔 → 점선 → 점선+추천 각도/힘 순서로 바꿔요. 화면의 🎯 버튼도 같아요.</span><span class="t-only">아래쪽 HUD 의 🎯 버튼을 누를 때마다 끔 → 점선 → 점선+추천 각도/힘 순서로 바뀌어요.</span></div></div>
+            <div class="bk"><kbd><span class="k-only">T</span><span class="t-only">🔄</span></kbd><div><b>목표 바꾸기</b>다른 적을 노려요. <span class="k-only">적 탱크를 콕 눌러도 돼요.</span><span class="t-only">카드의 🔄 버튼이나 적 탱크를 콕 눌러요.</span></div></div>
+            <div class="bk"><kbd><span class="k-only">G</span><span class="t-only">🎯</span></kbd><div><b>각도 자동 맞추기</b>포신이 추천 각도로 스르륵 움직여요.<span class="t-only"> (카드의 🎯 자동 버튼)</span></div></div>
+          </div>
+          <h3 class="beg-h">뭐가 쉬워지나요?</h3>
+          <div class="beg-easy">
+            <div><span>💥</span>폭발이 <b>더 커요</b><small>조금 빗나가도 맞아요</small></div>
+            <div><span>🛡</span>내 포탄에 <b>내가 안 맞아요</b><small>실수해도 괜찮아요</small></div>
+            <div><span>🪂</span><b>떨어져도 안 아파요</b><small>낙하 피해 없음</small></div>
+            <div><span>🐌</span>힘이 <b>천천히</b> 차올라요<small>초록 구간에 놓기 쉬워요</small></div>
+            <div><span>⏱</span>한 턴이 <b>40초</b><small>천천히 생각해요 (기본 25초)</small></div>
+            <div><span>🍃</span>바람이 <b>아주 약해요</b><small>바람 걱정은 조금만!</small></div>
+            <div><span>🤖</span>CPU가 <b>순해요</b><small>자주 빗나가요</small></div>
+            <div><span>⚡</span>SS 게이지가 <b>빨리 차요</b><small>필살기를 더 자주!</small></div>
+            <div><span>💚</span><b>회복 아이템 2배</b><small>체력을 더 자주 채워요</small></div>
+          </div>
+          <div class="beg-note">💡 온라인 대전에서는 <b>방장</b>이 비기너 모드를 켜면 모두에게 적용돼요. 일반 온라인 방에서는 공정한 대결을 위해 조준 도우미가 꺼져 있어요. 로컬 대전(연습)에서는 비기너가 아니어도 <kbd>H</kbd> 로 도우미를 켤 수 있어요.</div>
         </div>
       </div>
       <div class="tabpane" data-pane="dex"><div class="dex" id="help-dex"></div></div>
@@ -1033,7 +1389,7 @@ body.touch #touch:not(.hidden) { display: flex; }
           <div class="rule"><div class="ri">⏳</div><div><b>딜레이 턴제</b>강한 무기일수록, 많이 움직일수록 다음 차례가 늦게 옵니다. 빙결 공격을 맞으면 턴이 더 밀려요.</div></div>
           <div class="rule"><div class="ri">⚡</div><div><b>SS 게이지</b>피해를 주거나 받을 때 차오릅니다. 100%가 되면 탱크마다 다른 필살기를 쓸 수 있어요.</div></div>
           <div class="rule"><div class="ri">🌊</div><div><b>풍덩!</b>물(용암)에 빠지면 바로 탈락이에요! 발밑 땅이 파이면 떨어질 수 있으니 조심하세요.</div></div>
-          <div class="rule"><div class="ri">⏱</div><div><b>턴 제한</b>한 턴은 25초. 시간이 지나면 자동으로 턴이 넘어갑니다.</div></div>
+          <div class="rule"><div class="ri">⏱</div><div><b>턴 제한</b>한 턴은 25초 (🐣 비기너 모드는 40초). 시간이 지나면 자동으로 턴이 넘어갑니다.</div></div>
           <div class="rule"><div class="ri">🏆</div><div><b>승리</b>마지막까지 살아남은 플레이어(팀전은 팀)가 승리합니다.</div></div>
         </div>
       </div>
@@ -1066,9 +1422,8 @@ const SEA = H - 26;               // 이 아래로 떨어지면 추락(사망)
 const GRAV = 420;                 // 중력 px/s^2
 const VMAX = 880;                 // 파워 100일 때 초기 속도
 const WIND_ACC = 14;              // 바람 1칸당 가속도
-const TURN_TIME = 25;             // 턴 제한 시간(초)
 const SIM_DT = 1 / 120;           // 물리 스텝
-const TANK_HIT_R = 21;            // 탱크 피격 반경
+const TANK_HIT_R = 21;            // 탱크 피격 반경 (일반 모드 기준값 — 실제 판정은 RULES.hitR)
 const TANK_SCALE = 1.2;           // 탱크 그림/포구 크기 배율
 const SKIP_DELAY = 500;
 
@@ -1080,6 +1435,38 @@ const PCOLORS = [
 ];
 const TEAM_NAMES = ['개인', 'A팀', 'B팀'];
 const TEAM_COLORS = ['#cfd8e3', '#ff7a59', '#4fc3ff'];
+
+/* ---------------------------------------------------------
+ *  매치 규칙 (일반 / 비기너)
+ *   매치 시작 이벤트('start')의 beginner 필드로 setRules(beginner) 를 호출해 정한다.
+ *   시뮬레이션에 영향을 주는 값(hitR·blastMul·dmgMul·fallDmg·noSelfHit·ssMul·healMul)은
+ *   모든 클라이언트가 같은 start 이벤트에서 똑같이 얻으므로 온라인 결정성이 유지된다.
+ *   RULES 는 객체 참조를 유지한 채 값만 바뀐다 (Object.assign).
+ *    hitR       탱크 피격 반경          blastMul  폭발/구덩이/피해 반경 배율
+ *    dmgMul     무기 데미지 배율        fallDmg   낙하 데미지 여부
+ *    noSelfHit  내 포탄에 나는 안 맞음  ssMul     SS 게이지 충전 배율
+ *    turnTime   턴 제한 시간(초)        chargeSpeed 파워 충전 속도(파워/초)
+ *    windMax    바람 최대치(서버/로컬 백엔드가 생성)
+ *    aiErr      CPU 조준 오차 배율      healMul   회복 아이템 개수 배율
+ * --------------------------------------------------------- */
+const RULES_NORMAL = Object.freeze({
+  beginner: false, hitR: 21, blastMul: 1, dmgMul: 1, fallDmg: true, noSelfHit: false, ssMul: 1,
+  turnTime: 25, chargeSpeed: 52, windMax: 10, aiErr: 1, healMul: 1
+});
+const RULES_BEGINNER = Object.freeze({
+  beginner: true, hitR: 26, blastMul: 1.3, dmgMul: 1, fallDmg: false, noSelfHit: true, ssMul: 1.5,
+  turnTime: 40, chargeSpeed: 30, windMax: 2, aiErr: 4, healMul: 2
+});
+const RULES = Object.assign({}, RULES_NORMAL);
+function setRules(beginner) { return Object.assign(RULES, beginner === true ? RULES_BEGINNER : RULES_NORMAL); }
+/** 예전 코드/HUD 호환: TURN_TIME 을 읽을 때마다 현재 규칙의 턴 시간을 돌려준다 */
+Object.defineProperty(globalThis, 'TURN_TIME', { get() { return RULES.turnTime; }, configurable: true });
+/** 매치 시작 아이템 개수 (회복은 규칙 배율 적용) */
+function startItems() {
+  const o = Object.assign({}, ITEM_START);
+  o.heal = Math.max(0, Math.round(o.heal * RULES.healMul));
+  return o;
+}
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -1912,11 +2299,11 @@ function runPending(world, e) {
     addProj(world, Object.assign({}, e.proj));
     if (e.muzzleFx && world.fx) world.fx.fire(findP(world, e.proj.owner), e.proj.w, e.proj);
   } else if (e.kind === 'orbital') {
-    const m = world.terrain.mask, w = e.w, x = e.x;
+    const m = world.terrain.mask, w = e.w, x = e.x, sr = w.sr * RULES.blastMul;
     const top = Math.min(surfaceY(m, x), SEA);
-    for (let y = top - 10; y < Math.min(top + 190, SEA + 20); y += 16) world.terrain.crater(x, y, w.sr);
+    for (let y = top - 10; y < Math.min(top + 190, SEA + 20); y += 16) world.terrain.crater(x, y, sr);
     for (const p of world.players) {
-      if (p.alive && Math.abs(p.x - x) < w.sr + 14) applyDamage(world, p, w.sdmg, e.owner, w, false);
+      if (p.alive && Math.abs(p.x - x) < sr + 14) applyDamage(world, p, w.sdmg, e.owner, w, false);
     }
     if (world.fx) world.fx.beam(x, top);
   }
@@ -1988,9 +2375,10 @@ function stepProj(world, pr, dt) {
   if (world.fx) world.fx.trail(pr);
   if (pr.x < -400 || pr.x > W + 400) { pr.dead = true; return; }
   if (pr.y > SEA) { pr.dead = true; world.lastEventT = world.t; if (world.fx) world.fx.splash(pr.x); return; }
+  const hitR = RULES.hitR;
   for (const p of world.players) {
-    if (!p.alive || (p.id === pr.owner && pr.age < 0.35)) continue;
-    if (Math.hypot(pr.x - p.x, pr.y - (p.y - 14)) < TANK_HIT_R) { explode(world, pr, pr.x, pr.y, p); return; }
+    if (!p.alive || (p.id === pr.owner && (pr.age < 0.35 || RULES.noSelfHit))) continue;
+    if (Math.hypot(pr.x - p.x, pr.y - (p.y - 14)) < hitR) { explode(world, pr, pr.x, pr.y, p); return; }
   }
   if (isSolid(m, pr.x, pr.y)) {
     if (pr.drill > 0) {
@@ -2031,17 +2419,18 @@ function explode(world, pr, x, y, direct) {
   const w = pr.w;
   pr.dead = true;
   world.lastEventT = world.t;
+  const br = w.r * RULES.blastMul;   // 폭발 반경 (비기너 = 더 크게)
   if (w.mound) world.terrain.mound(x, y, w.mound);
-  else world.terrain.crater(x, y, w.r);
-  if (world.fx) world.fx.explode(x, y, w.mound ? w.mound * 0.7 : w.r, w.fx || 'fire', !!w.mound);
-  damageArea(world, x, y, w.r, w.dmg, pr.owner, direct, w);
+  else world.terrain.crater(x, y, br);
+  if (world.fx) world.fx.explode(x, y, w.mound ? w.mound * 0.7 : br, w.fx || 'fire', !!w.mound);
+  damageArea(world, x, y, br, w.dmg, pr.owner, direct, w);
   if (w.strike) scheduleStrike(world, x, y, w, pr.owner);
 }
 
 function damageArea(world, x, y, r, dmg, owner, direct, w) {
   for (const p of world.players) {
     if (!p.alive) continue;
-    const reach = r + TANK_HIT_R, d = Math.hypot(p.x - x, p.y - 14 - y);
+    const reach = r + RULES.hitR, d = Math.hypot(p.x - x, p.y - 14 - y);
     let amt = 0;
     if (p === direct) amt = dmg * 1.2;
     else if (d < reach) amt = dmg * (0.3 + 0.7 * (1 - d / reach));
@@ -2051,11 +2440,13 @@ function damageArea(world, x, y, r, dmg, owner, direct, w) {
 
 function applyDamage(world, p, amt, owner, w, direct) {
   if (!p.alive || amt <= 0) return;
+  if (RULES.noSelfHit && owner != null && p.id === owner) return;   // 비기너: 내 포탄에 나는 안 맞음
+  if (w && RULES.dmgMul !== 1) amt = Math.max(1, Math.round(amt * RULES.dmgMul));
   amt = Math.min(amt, p.hp);
   p.hp -= amt; p.taken = (p.taken || 0) + amt;
   const o = findP(world, owner);
-  if (o && o !== p) { o.ss = Math.min(100, o.ss + amt * 0.12); o.dealt += amt; }
-  p.ss = Math.min(100, p.ss + amt * 0.06);
+  if (o && o !== p) { o.ss = Math.min(100, o.ss + amt * 0.12 * RULES.ssMul); o.dealt += amt; }
+  p.ss = Math.min(100, p.ss + amt * 0.06 * RULES.ssMul);
   if (w && w.freeze) p.freeze += w.freeze;
   if (world.fx) world.fx.damage(p, amt, w, { direct: !!direct, owner: owner == null ? null : owner });
   if (p.hp <= 0) killPlayer(world, p, false);
@@ -2079,7 +2470,7 @@ function settlePlayer(world, p, dt) {
       p.falling = false;
       const fall = p.y - p.fallFrom;
       if (world.fx) world.fx.land(p, fall);
-      if (fall > 50 && p.alive) applyDamage(world, p, Math.min(160, Math.round((fall - 50) * 0.7)), null, null, false);
+      if (fall > 50 && p.alive && RULES.fallDmg) applyDamage(world, p, Math.min(160, Math.round((fall - 50) * 0.7)), null, null, false);
       world.lastEventT = world.t;
     }
     p.vy = 0;
@@ -6488,7 +6879,7 @@ function bomberSprite() {
 const G = {
   canvas: null, ctx: null, dpr: 1, scale: 1, ox: 0, oy: 0,
   screen: 'title', attract: false, silent: false,
-  seed: 0, themeId: 'grass', theme: THEMES.grass, teamMode: false,
+  seed: 0, themeId: 'grass', theme: THEMES.grass, teamMode: false, beginner: false,
   players: [], terrain: null, painter: null, bg: null, heights: null,
   clouds: [], ambient: [], fx: null,
   queue: [], log: [], busy: false, anim: null, turn: null, ctl: null, backend: null,
@@ -6511,6 +6902,7 @@ function setupInput() {
       if (e.key === '2' || e.key === 'w' || e.key === 'W') selectWeapon(1);
       if (e.key === '3' || e.key === 'e' || e.key === 'E') selectWeapon(2);
       if (e.key === 'Tab' || e.key === 'p' || e.key === 'P') { e.preventDefault(); skipMyTurn(); }
+      if (e.key === 'Escape' && cancelCharge()) e.preventDefault();
       const ik = ['4', '5', '6'].indexOf(e.key);
       if (ik >= 0 && !e.repeat) selectItem(ITEM_IDS[ik]);
       const ek = ['7', '8', '9', '0'].indexOf(e.key);
@@ -6529,6 +6921,8 @@ function setupInput() {
     const off = e => { e.preventDefault(); Input[k] = false; b.classList.remove('on'); };
     b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointerleave', off); b.addEventListener('pointercancel', off);
   });
+  // 힘 채우기 취소 버튼 (터치): 발사 버튼을 누른 채 다른 손가락으로 누른다
+  $$('[data-cancel]').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); Sound.init(); cancelCharge(); }));
 }
 
 /* ---------------- 백엔드: 로컬 (한 PC에서 여럿 + CPU) ---------------- */
@@ -6537,8 +6931,9 @@ class LocalBackend {
     this.local = true;
     this.players = config.players.map(p => Object.assign({}, p, { alive: true, delay: Math.floor(Math.random() * 60), lastTurn: -1 }));
     this.teamMode = config.teamMode; this.turnNo = 0; this.ended = false;
+    this.beginner = config.beginner === true;   // 비기너 모드 (바람 ±2, 규칙은 start 이벤트로 전파)
     const theme = config.theme === 'random' ? THEME_IDS[Math.floor(Math.random() * THEME_IDS.length)] : config.theme;
-    G.queue.push({ type: 'start', seed: Math.floor(Math.random() * 2147483647), theme, teamMode: config.teamMode,
+    G.queue.push({ type: 'start', seed: Math.floor(Math.random() * 2147483647), theme, teamMode: config.teamMode, beginner: this.beginner,
       players: this.players.map(p => ({ id: p.id, name: p.name, tank: p.tank, team: config.teamMode ? p.team : 0, slot: p.slot, cpu: p.cpu })) });
     this.nextTurn();
   }
@@ -6548,7 +6943,8 @@ class LocalBackend {
     const alive = this.players.filter(p => p.alive);
     alive.sort((a, b) => (a.delay - b.delay) || (a.lastTurn - b.lastTurn) || (a.slot - b.slot));
     this.turnNo++;
-    G.queue.push({ type: 'turn', pid: alive[0].id, no: this.turnNo, wind: Math.round((Math.random() * 2 - 1) * 10), order: alive.map(p => p.id) });
+    const windMax = (this.beginner ? RULES_BEGINNER : RULES_NORMAL).windMax;
+    G.queue.push({ type: 'turn', pid: alive[0].id, no: this.turnNo, wind: Math.round((Math.random() * 2 - 1) * windMax), order: alive.map(p => p.id) });
   }
   checkEnd() {
     const sides = new Set(this.players.filter(p => p.alive).map(p => this.side(p)));
@@ -6592,14 +6988,19 @@ class OnlineBackend {
     this.since = 0; this.room = null; this.inflight = false; this.stopped = false; this.lastLive = 0; this.liveKey = '';
     this.poll();
   }
+  /** 방 정보. 다른 곳(방장의 hostUpdate 응답 등)이 B.room = ... 으로 갱신하면 세대(roomEpoch)가 올라가서,
+   *  그보다 먼저 보낸 낡은 폴링 응답이 나중에 도착해도 방 정보를 되돌리지 못한다. */
+  get room() { return this._room; }
+  set room(v) { this._room = v; this.roomEpoch = (this.roomEpoch || 0) + 1; }
   controls(p) { return p.id === this.pid || (p.cpu && this.room && this.room.hostId === this.pid); }
   isHost() { return this.room && this.room.hostId === this.pid; }
   poll() {
     if (this.stopped) return;
     if (this.inflight) return;
     this.inflight = true;
+    const epoch = this.roomEpoch;
     Net.call('poll', this.code, this.pid, this.token, this.since).then(res => {
-      this.room = res.room;
+      if (this.roomEpoch === epoch) this._room = res.room;   // 이 폴링을 보낸 뒤 방 정보가 이미 더 새 값으로 바뀌었으면 (낡은 스냅샷) 덮어쓰지 않음
       for (const ev of res.events) {
         if (ev.i !== this.since) break;
         this.since = ev.i + 1;
@@ -6646,6 +7047,9 @@ class OnlineBackend {
 
 /* ---------------- 매치 초기화 ---------------- */
 function initMatch(ev) {
+  // 규칙은 지형/탱크를 만들기 전에 (모든 클라이언트가 start 이벤트에서 똑같이 얻는다 — 재동기화 때도 동일)
+  G.beginner = ev.beginner === true;
+  setRules(G.beginner);
   G.seed = ev.seed; G.themeId = ev.theme; G.theme = THEMES[ev.theme]; G.teamMode = ev.teamMode;
   const gen = genTerrain(ev.seed);
   G.heights = gen.heights;
@@ -6664,7 +7068,7 @@ function initMatch(ev) {
       ss: 0, freeze: 0, falling: false, fallFrom: y, dealt: 0, totalDealt: 0, tread: 0, recoil: 0, hurtT: 0, frozenT: 0,
       seedOff: i * 1.37, lastPower: null, left: false,
       mood: null, moodT: 0, movingT: 0, emote: null, emoteAt: -99,
-      items: Object.assign({}, ITEM_START), stats: newStats()
+      items: startItems(), stats: newStats()
     };
   });
   G.anim = null; G.turn = null; G.ctl = null; G.busy = false; G.playedTurns = new Set(); G.endInfo = null; G.live = null;
@@ -6784,8 +7188,9 @@ function handleEvent(ev) {
     case 'start':
       G.log = [ev];
       initMatch(ev);
+      assistCall('reset');
       if (!G.attract) showScreen('play');
-      banner(THEMES[ev.theme].name + ' 맵', G.teamMode ? '팀전 시작!' : '개인전 시작!');
+      banner(THEMES[ev.theme].name + ' 맵', (G.teamMode ? '팀전 시작!' : '개인전 시작!') + (G.beginner ? ' · 🐣 비기너 모드' : ''));
       G.busy = true;
       { const tok = G.startEv; setTimeout(() => { if (G.startEv === tok) G.busy = false; }, G.attract ? 300 : 1400); }
       break;
@@ -6826,7 +7231,7 @@ function handleEvent(ev) {
 function beginTurn(ev) {
   G.wind = ev.wind;
   const p = findPlayer(ev.pid);
-  G.turn = { pid: ev.pid, no: ev.no, wind: ev.wind, timeLeft: TURN_TIME };
+  G.turn = { pid: ev.pid, no: ev.no, wind: ev.wind, timeLeft: RULES.turnTime };
   G.turnOrder = (Array.isArray(ev.order) && ev.order.length ? ev.order : [ev.pid]).filter(id => { const q = findPlayer(id); return q && q.alive; });
   G.ctl = null;
   if (!G.attract && Sound.setWind) Sound.setWind(ev.wind);
@@ -6837,12 +7242,21 @@ function beginTurn(ev) {
               ai: p.cpu ? { phase: 'think', t: rand(0.5, 1.1) } : null, lastTick: 99, item: null, warned: false };
   }
   const mine = G.ctl && !p.cpu;
+  if (mine) assistCall('onTurn', p, G.ctl);
   pilotSay(p, 'turn', ev.no * 13 + 1, 0.45);
   if (!G.attract) {
     Sound.play(mine ? 'myturn' : 'turn');
     banner(mine ? (G.backend.local && humanCount() > 1 ? `${p.name}의 차례!` : '내 차례!') : `${p.name}의 차례`, `바람 ${windText(ev.wind)}`, p.pc.c);
   }
   updateHud(true);
+}
+
+/** 조준 도우미 훅 (Assist.html). 없거나 예외가 나도 게임 루프는 멈추지 않는다. */
+let assistBroken = false;
+function assistCall(name, ...args) {
+  if (assistBroken || typeof Assist === 'undefined' || !Assist || typeof Assist[name] !== 'function') return;
+  try { Assist[name](...args); }
+  catch (e) { assistBroken = true; console.error('Assist.' + name + ' 오류 — 조준 도우미를 끕니다', e); try { Assist.level = 0; } catch (_) { /* 무시 */ } }
 }
 
 function humanCount() { return G.players.filter(p => !p.cpu).length; }
@@ -6982,6 +7396,19 @@ function selectItem(id) {
   c.item = id; Sound.play('select'); updateHud(true);
 }
 
+/** 힘 채우기 취소: 비기너 · 로컬 연습에서만 (온라인 일반 방은 원작대로 — 떼면 발사) */
+function canCancelCharge() { return G.beginner === true || !!(G.backend && G.backend.local); }
+/** 힘을 채우는 중에 잘못 눌렀을 때 (각도가 안 맞았거나 너무 세게 채웠을 때) 발사하지 않고 처음부터. Esc / 터치 ✋ 버튼 */
+function cancelCharge() {
+  const c = G.ctl, p = curPlayer();
+  if (!c || !p || p.cpu || c.ai || c.done || !c.charging || G.busy || !canCancelCharge()) return false;
+  c.charging = false; c.power = 0; c.lastChg = -1;
+  if (Input.fire) c.fireHeld = true;           // 손가락/키를 뗄 때까지 다시 충전되지 않도록
+  Sound.play('click'); toast('✋ 취소했어요! 다시 눌러서 힘을 채워요');
+  updateHud(true);
+  return true;
+}
+
 function skipMyTurn() {
   const c = G.ctl, p = curPlayer();
   if (!c || !p || p.cpu || c.done || c.charging || G.busy) return;
@@ -7025,10 +7452,16 @@ function humanUpdate(c, p, dt) {
   if (Input.fire && !c.charging && !c.fireHeld) { c.charging = true; c.power = 0; }
   if (!Input.fire) c.fireHeld = false;
   if (c.charging) {
-    c.power += dt * 52;
+    c.power += dt * RULES.chargeSpeed * assistChargeMul(c);
     if (Math.floor(c.power / 4) !== c.lastChg) { c.lastChg = Math.floor(c.power / 4); Sound.charge(c.power); }
     if (!Input.fire || c.power >= 100) { c.power = Math.min(100, c.power); doFire(); }
   }
+}
+
+/** 조준 도우미: 초록 구간 근처에서 힘 막대가 천천히 오르게 하는 배율 (도우미가 없거나 꺼져 있으면 1) */
+function assistChargeMul(c) {
+  try { return !assistBroken && typeof Assist !== 'undefined' && Assist && typeof Assist.chargeMul === 'function' ? Assist.chargeMul(c) : 1; }
+  catch (e) { return 1; }
 }
 
 function doFire() {
@@ -7072,7 +7505,7 @@ function aiTraj(p, facing, angle, power, w) {
     vx += G.wind * WIND_ACC * wm * dt; vy += GRAV * gm * dt; x += vx * dt; y += vy * dt;
     if (x < -300 || x > W + 300) return { x, y, miss: true };
     if (y > SEA) return { x, y: SEA, miss: true };
-    if (t > 0.35) for (const o of G.players) if (o.alive && Math.hypot(x - o.x, y - o.y + 14) < TANK_HIT_R) return { x, y };
+    if (t > 0.35) for (const o of G.players) if (o.alive && Math.hypot(x - o.x, y - o.y + 14) < RULES.hitR) return { x, y };
     if (isSolid(m, x, y)) return { x, y };
   }
   return { x, y, miss: true };
@@ -7107,7 +7540,7 @@ function aiPlanAim(p, wIdx) {
     const sc = scoreOf(aiTraj(p, b0.facing, a, pw, w));
     if (sc < best.score) best = { score: sc, angle: a, power: pw, facing: b0.facing };
   }
-  const err = G.attract ? 3 : 2.2;
+  const err = (G.attract ? 3 : 2.2) * RULES.aiErr;   // 비기너: CPU 는 봐주기 (오차 큼)
   best.angle = clamp(Math.round(best.angle + rand(-err, err) * 0.6), 0, 90);
   best.power = clamp(best.power + rand(-err, err), 5, 100);
   return best;
@@ -7156,7 +7589,7 @@ function aiUpdate(c, p, dt) {
   } else if (ai.phase === 'charge') {
     if (ai.t > 0) { ai.t -= dt; return; }
     c.charging = true;
-    c.power = Math.min(ai.plan.power, c.power + dt * 52);
+    c.power = Math.min(ai.plan.power, c.power + dt * RULES.chargeSpeed);
     if (c.power >= ai.plan.power) doFire();
   }
 }
@@ -7204,6 +7637,7 @@ function loop(ts) {
   if (G.players.length) {
     if (G.anim) updateAnim(dt);
     updateControl(dt);
+    assistCall('tick', dt);
     updateRemote(dt);
     for (const p of G.players) {
       p.recoil = Math.max(0, p.recoil - dt * 4); p.hurtT = Math.max(0, p.hurtT - dt); p.frozenT = Math.max(0, p.frozenT - dt * 0.5);
@@ -7224,13 +7658,899 @@ function loop(ts) {
 
 <script>
 /* =========================================================
- *  Assist: 조준 도우미 (스텁 — 실제 구현은 조준 도우미 담당이 이 파일을 통째로 교체)
+ *  Assist: 조준 도우미 (비기너 모드의 "각도·힘 알려주기")
+ *
+ *   1) AssistSolver  — 순수 계산기 (DOM/G 접근 없음, Node 에서도 로드됨: tools/test-assist.js)
+ *        Sim.html 과 똑같은 방식(SIM_DT, 스텝 순서, muzzle, 지형 마스크, 바람/중력/속도 배율,
+ *        호밍·정점 분열·드릴·바운스·폭격/위성/눈보라, 탱크 피격 반경 RULES.hitR)으로 탄을 굴려서
+ *        "이 각도·이 힘이면 어디에 떨어지는지" 를 예측하고, 목표에 맞는 각도/힘과 허용 구간(초록 구간)을 찾는다.
+ *   2) Assist        — 게임 쪽 엔진: 목표 선택, 추천값 계산(입력이 바뀔 때만), 실시간 궤적 미리보기,
+ *        코치 메시지, H/T/G 키, 자동 조준, 'ready' 소리. 그림은 View.html / 코치 카드는 HudMarkup.html.
+ *
+ *   ※ 클라이언트 로컬 전용. 시뮬레이션(결정적 재생)에는 절대 영향을 주지 않는다.
+ *      (사람 턴 시작 때 p.facing 만 목표 쪽으로 돌려 준다 — 발사 params 에 원래 실리는 값)
  * ========================================================= */
+
+const AssistSolver = (function () {
+  'use strict';
+  let SHOTS = 0, STEPS = 0;     // 통계 (테스트/튜닝용)
+  const round1 = v => Math.round(v * 10) / 10;
+  const clampv = (v, a, b) => v < a ? a : v > b ? b : v;
+
+  /** 규칙 (RULES 는 다른 파일에서 오므로 없을 때를 대비한 기본값) */
+  function rulesOf(opts) {
+    const R = (opts && opts.rules) || (typeof RULES !== 'undefined' ? RULES : null) || {};
+    return {
+      hitR: R.hitR != null ? R.hitR : TANK_HIT_R,
+      blastMul: R.blastMul != null ? R.blastMul : 1,
+      noSelf: !!R.noSelfHit
+    };
+  }
+  /** 무기 종류: 'shell'(일반탄·호밍·분열·드릴·바운스) | 'orbital' | 'air' | 'blizzard' | 'mound'(얼음벽) */
+  function wclass(w) { return w.mound ? 'mound' : (w.strike || 'shell'); }
+
+  /** 포신 회전축 (탱크 기울기 반영) — Sim.muzzle 과 같은 식. 각도와 무관하므로 한 번만 계산 */
+  function pivotOf(mask, shooter, facing) {
+    const t = calcTilt(mask, shooter), px = -3 * facing * TANK_SCALE, py = -25 * TANK_SCALE;
+    return {
+      cx: shooter.x + Math.cos(t) * px - Math.sin(t) * py,
+      cy: shooter.y + Math.sin(t) * px + Math.cos(t) * py, tilt: t, f: facing
+    };
+  }
+  function muzzleAt(pv, angleDeg) {
+    const a = angleDeg * Math.PI / 180, L = 30 * TANK_SCALE;
+    return { x: pv.cx + pv.f * Math.cos(a) * L, y: pv.cy - Math.sin(a) * L };
+  }
+
+  /** 드릴이 판 구멍(겹침) 안인가 — TerrainMask.crater 와 같은 픽셀 규칙 */
+  function cleared(cr, xi, yi) {
+    for (let k = 0; k < cr.length; k += 3) {
+      const dy = yi - cr[k + 1], r = cr[k + 2];
+      if (dy > r || dy < -r) continue;
+      const dx = xi - cr[k];
+      if (dx * dx <= r * r - dy * dy) return true;
+    }
+    return false;
+  }
+  function solidF(env, xf, yf) {
+    const xi = xf | 0, yi = yf | 0;
+    if (xi < 0 || xi >= W || yi < 0 || yi >= H || env.mask[yi * W + xi] !== 1) return false;
+    return !(env.cr.length && cleared(env.cr, xi, yi));
+  }
+
+  /* ---------- 폭격/위성/눈보라: 폭발 x 를 기준으로 실제 피해가 닿는 범위 (목표.x - 폭발.x) ----------
+   *  위성 레이저는 폭발 x 에서 위→아래로 내려오며 가로 거리만 본다(지형 무관).
+   *  폭격기/눈보라는 하늘에서 폭탄/고드름이 떨어지므로, 공중 섬·언덕에 막히는 것까지 포함해 폭탄을 실제로 굴려 본다:
+   *   "폭탄이 X0 에서 떨어지면 목표가 다치는가" 의 구간을 구한 뒤(굵게 훑고 경계는 이분), 폭발 x 마다
+   *   (폭격기는 좌/우 어느 쪽으로 날아와도, 흔들림 ±8/±10 에도) 반드시 닿는 폭발 x 범위를 구한다. */
+  function bombEnv(env, bw) {
+    const e = Object.assign({}, env), wm = bw.windMul === undefined ? 1 : bw.windMul;
+    e.w = bw; e.cls = 'shell'; e.apex = false; e.cr = []; e.speedMul = 1; e.target = null;
+    e.ax = env.wind * WIND_ACC * wm * SIM_DT; e.ay = GRAV * (bw.gravMul || 1) * SIM_DT;
+    e.out = { kind: '', x: 0, y: 0, tank: null, steps: 0 };
+    e.R = bw.r * env.bm; e.maxSteps = Math.round(9 / SIM_DT);
+    return e;
+  }
+  function hitIntervals(fn, lo, hi, step) {
+    const pts = [];
+    for (let X = lo; X <= hi; X += step) pts.push([X, fn(X)]);
+    const iv = [];
+    for (let i = 0; i < pts.length;) {
+      if (!pts[i][1]) { i++; continue; }
+      let j = i;
+      while (j + 1 < pts.length && pts[j + 1][1]) j++;
+      let L = pts[i][0], Rr = pts[j][0];
+      if (i > 0) { let g = pts[i][0], b = pts[i - 1][0]; while (g - b > 2) { const m = (g + b) / 2; if (fn(m)) g = m; else b = m; } L = g; }
+      if (j + 1 < pts.length) { let g = pts[j][0], b = pts[j + 1][0]; while (b - g > 2) { const m = (g + b) / 2; if (fn(m)) g = m; else b = m; } Rr = g; }
+      iv.push([L, Rr]);
+      i = j + 1;
+    }
+    return iv;
+  }
+  function strikeWindow(env, target) {
+    const w = env.w, bm = env.bm;
+    if (env.cls === 'orbital') {
+      const half = w.sr * bm + 14 - 3;
+      return { lo: -half, hi: half };
+    }
+    const air = env.cls === 'air';
+    const bw = air ? { name: '폭탄', spr: 'bomb', dmg: w.sdmg, r: w.sr, windMul: 0.25, fx: 'fire' }
+                   : { name: '고드름', spr: 'icicle', dmg: w.sdmg, r: w.sr, windMul: 0.15, fx: 'ice' };
+    const benv = bombEnv(env, bw), reach = benv.R + env.hitR - 1, jit = air ? 8 : 10;
+    const dirs = air ? [1, -1] : [0];
+    const tx = target.x, ty = target.y - 14;
+    const ivs = dirs.map(dir => hitIntervals(X0 => {
+      const o = fly(benv, X0, air ? -30 : -40, air ? dir * 70 : 0, air ? 80 : 260, null, undefined, benv.out);
+      if (o.kind !== 'tank' && o.kind !== 'ground') return false;
+      if (o.tank && o.tank.id === target.id) return true;
+      const dx = tx - o.x, dy = ty - o.y;
+      return dx * dx + dy * dy < reach * reach;
+    }, tx - 330, tx + 330, 16));
+    const offs = air ? [[-180, -120, -60, 0, 60, 120, 180], [180, 120, 60, 0, -60, -120, -180]] : [[-96, -48, 0, 48, 96]];
+    const inIv = (iv, X0) => { for (const q of iv) if (X0 - jit - 4 >= q[0] && X0 + jit + 4 <= q[1]) return true; return false; };
+    let best = null, cur = null;
+    for (let dd = -420; dd <= 420; dd += 3) {
+      const ex = tx - dd;
+      let ok = true;
+      for (let k = 0; k < dirs.length && ok; k++) {
+        let any = false;
+        for (const o of offs[k]) if (inIv(ivs[k], ex + o)) { any = true; break; }
+        if (!any) ok = false;
+      }
+      if (ok) { if (!cur) cur = { lo: dd, hi: dd }; else cur.hi = dd; if (!best || cur.hi - cur.lo > best.hi - best.lo) best = cur; }
+      else cur = null;
+    }
+    return best && best.hi - best.lo >= 6 ? { lo: best.lo, hi: best.hi } : null;
+  }
+
+  /** 폭격류 범위는 비싸므로(폭탄 수십 발) 같은 조건이면 재사용 — 실시간 미리보기가 프레임마다 부르기 때문 */
+  const maskIds = typeof WeakMap === 'function' ? new WeakMap() : null;
+  let maskSeq = 0, winCache = { key: '', win: null };
+  function cachedWindow(env, opts) {
+    // 지형이 제자리에서 바뀔 수 있으므로(크레이터/얼음벽은 같은 마스크를 고친다) 호출자가 지형 버전(opts.terrainKey)을 넘길 때만 재사용한다.
+    // 안 넘기면 매번 새로 계산 — 낡은 창(window)으로 '머리 위가 막혔어요/추천 가능' 을 잘못 알려주는 일이 없도록.
+    if (opts.terrainKey == null) return strikeWindow(env, env.target);
+    let id = 0;
+    if (maskIds) { id = maskIds.get(env.mask); if (!id) { id = ++maskSeq; maskIds.set(env.mask, id); } }
+    let key = [id, opts.terrainKey, env.cls, env.wind, env.w.sr, env.w.sdmg, env.hitR, env.bm, env.sid, env.target.id, Math.round(env.target.x), Math.round(env.target.y)].join(',');
+    for (const p of env.list) key += '|' + (p.alive ? Math.round(p.x) + ',' + Math.round(p.y) : 'x');
+    if (winCache.key !== key) winCache = { key, win: strikeWindow(env, env.target) };
+    return winCache.win;
+  }
+
+  /** 계산 환경: 한 번 만들어 두고 각도/힘만 바꿔 가며 여러 번 굴린다 */
+  function makeEnv(mask, players, shooter, facing, weapon, wind, opts) {
+    opts = opts || {};
+    const rl = rulesOf(opts);
+    const list = players.map(p => (p.id === shooter.id ? shooter : p)).map(p => ({ id: p.id, x: p.x, y: p.y, alive: !!p.alive, team: p.team || 0 }));
+    const cls = wclass(weapon), wm = weapon.windMul === undefined ? 1 : weapon.windMul;
+    const env = {
+      mask, list, n: list.length, sid: shooter.id, team: shooter.team || 0, facing, w: weapon, cls, wind,
+      ax: wind * WIND_ACC * wm * SIM_DT, ay: GRAV * (weapon.gravMul || 1) * SIM_DT, speedMul: weapon.speedMul || 1,
+      hitR: rl.hitR, hitR2: rl.hitR * rl.hitR, bm: rl.blastMul, noSelf: rl.noSelf,
+      pivot: pivotOf(mask, shooter, facing), cr: [], maxSteps: Math.round(14 / SIM_DT), target: null, win: null,
+      apex: cls === 'shell' && weapon.split === 'apex', wm, gm: weapon.gravMul || 1,
+      R: cls === 'mound' ? weapon.mound : (cls === 'orbital' ? weapon.sr : weapon.r) * (cls === 'mound' ? 1 : rl.blastMul),
+      out: { kind: '', x: 0, y: 0, tank: null, steps: 0 }, out2: { kind: '', x: 0, y: 0, tank: null, steps: 0 },
+      shooterRef: shooter
+    };
+    env.tol = 0.75 * (env.R + env.hitR);      // 초록 구간 = 이만큼 안에 떨어지는 범위 (피해 반경 R+hitR 보다 안쪽)
+    if (opts.targetId != null) {
+      env.target = list.find(p => p.id === opts.targetId) || null;
+      if (env.target && (cls === 'orbital' || cls === 'air' || cls === 'blizzard')) env.win = cachedWindow(env, opts);
+    }
+    return env;
+  }
+
+  function fin(env, out, kind, x, y, tank, steps, path) {
+    out.kind = kind; out.x = x; out.y = y; out.tank = tank; out.steps = steps; STEPS += steps;
+    if (path) path.push([x, y]);
+    return out;
+  }
+
+  /**
+   * 탄 하나를 Sim.stepProj 와 똑같이 굴린다.
+   *  - 일반탄/호밍/드릴/바운스/집속(착탄 분열)/정점 분열(가운데 자탄)/폭격·위성·눈보라(첫 폭발 지점) 지원
+   *  - dvy: 정점 분열 가운데 자탄의 수직 속도 보정 (Sim: -20 + (rng-0.5)*30 → -35..-5)
+   */
+  function shoot(env, angle, power, path, dvy, out) {
+    const f = env.facing, a = angle * Math.PI / 180, mz = muzzleAt(env.pivot, angle);
+    const speed = power / 100 * VMAX * env.speedMul;
+    return fly(env, mz.x, mz.y, f * Math.cos(a) * speed, -Math.sin(a) * speed, path, dvy, out);
+  }
+  /** 시작 위치/속도에서 Sim.stepProj 와 똑같이 한 발을 끝까지 굴린다 (폭탄도 같은 함수로) */
+  function fly(env, x, y, vx, vy, path, dvy, out) {
+    const dt = SIM_DT, mask = env.mask, list = env.list, n = env.n, cr = env.cr, sid = env.sid, W_ = env.w;
+    cr.length = 0;
+    let age = 0, bounces = W_.bounce || 0, drill = W_.drill || 0, split = W_.split || null;
+    const homing = !!W_.homing, ax = env.ax, ay = env.ay, hitR2 = env.hitR2, noSelf = env.noSelf, team = env.team;
+    const childDv = dvy === undefined ? -20 : dvy;
+    if (path) path.push([x, y]);
+    let steps = 0;
+    SHOTS++;
+    for (;;) {
+      if (++steps > env.maxSteps) return fin(env, out, 'timeout', x, y, null, steps, path);
+      age += dt;
+      vx += ax; vy += ay;
+      if (homing && vy > 0 && age > 0.4) {
+        let t = null, bd = 1e9;
+        for (let i = 0; i < n; i++) {
+          const p = list[i];
+          if (!p.alive || p.id === sid || (team && p.team === team)) continue;
+          const d = Math.hypot(p.x - x, p.y - y);
+          if (d < bd) { bd = d; t = p; }
+        }
+        if (t) {
+          const want = Math.atan2(t.y - 14 - y, t.x - x), cur = Math.atan2(vy, vx);
+          let diff = want - cur;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          const ang = cur + clampv(diff, -3.0 * dt, 3.0 * dt), sp = Math.max(Math.hypot(vx, vy), 380);
+          vx = Math.cos(ang) * sp; vy = Math.sin(ang) * sp;
+        }
+      }
+      if (split === 'apex' && vy >= 0 && age > 0.12) {
+        // 가운데 자탄 (Sim 은 같은 틱 안에서 자탄도 한 스텝 더 진행한다 → 그대로 이어서 반복)
+        vy += childDv; age = 0; split = null;
+        continue;
+      }
+      const ox = x, oy = y;
+      x += vx * dt; y += vy * dt;
+      if (path && (steps & 1) === 0) path.push([x, y]);
+      if (x < -400 || x > W + 400) return fin(env, out, 'out', x, y, null, steps, path);
+      if (y > SEA) return fin(env, out, 'sea', x, y, null, steps, path);
+      for (let i = 0; i < n; i++) {
+        const p = list[i];
+        if (!p.alive || (p.id === sid && (age < 0.35 || noSelf))) continue;
+        const dx = x - p.x, dy = y - (p.y - 14);
+        if (dx * dx + dy * dy < hitR2) return fin(env, out, 'tank', x, y, p, steps, path);
+      }
+      const xi = x | 0, yi = y | 0;
+      if (xi >= 0 && xi < W && yi >= 0 && yi < H && mask[yi * W + xi] === 1 && !(cr.length && cleared(cr, xi, yi))) {
+        if (drill > 0) {
+          drill -= Math.hypot(vx, vy) * dt;
+          vx *= 0.99; vy *= 0.99;
+          if (Math.floor(age * 60) % 2 === 0) cr.push(Math.round(x), Math.round(y), 10);
+          if (drill <= 0) return fin(env, out, 'ground', x, y, null, steps, path);
+          continue;
+        }
+        if (bounces > 0) {
+          let nx = 0, ny = 0;
+          for (let dy = -6; dy <= 6; dy += 2) for (let dx = -6; dx <= 6; dx += 2) if (solidF(env, x + dx, y + dy)) { nx -= dx; ny -= dy; }
+          const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l;
+          if (!nx && !ny) ny = -1;
+          x = ox; y = oy;
+          const d = vx * nx + vy * ny;
+          if (d < 0) { vx -= 2 * d * nx; vy -= 2 * d * ny; }
+          vx *= 0.62; vy *= 0.62;
+          bounces--;
+          continue;
+        }
+        if (split === 'impact') return fin(env, out, 'ground', ox, oy, null, steps, path);
+        return fin(env, out, 'ground', x, y, null, steps, path);
+      }
+    }
+  }
+
+  /** 결과가 목표에 실제 피해를 주는가 (d = 폭발 지점과 목표 중심의 거리 / 폭격류는 x 차이) */
+  function judge(env, out) {
+    const t = env.target;
+    if (!t || out.kind === 'sea' || out.kind === 'out' || out.kind === 'timeout') return { hit: false, d: 1e9 };
+    if (env.cls === 'shell') {
+      const dx = t.x - out.x, dy = (t.y - 14) - out.y, d = Math.sqrt(dx * dx + dy * dy);
+      return { hit: d <= env.tol, d };
+    }
+    if (env.cls === 'mound') return { hit: false, d: 1e9 };
+    const dd = t.x - out.x, w = env.win;
+    return { hit: !!w && dd >= w.lo && dd <= w.hi, d: Math.abs(dd - (w ? (w.lo + w.hi) / 2 : 0)) };
+  }
+
+  /** 한 발 평가: 가운데 탄(경로 포함) + (정점 분열이면 자탄 수직속도 양 극단에서도 맞아야 hit) */
+  function evalShot(env, angle, power, path) {
+    if (env.apex && !path) {
+      // 가운데 자탄은 양 극단 사이 → 극단 둘이 맞으면 맞는다 (틀리면 한 발로 끝)
+      const o1 = shoot(env, angle, power, null, -35, env.out), j1 = judge(env, o1);
+      if (!j1.hit) return { out: o1, hit: false, d: j1.d };
+      const j2 = judge(env, shoot(env, angle, power, null, -5, env.out2));
+      return { out: o1, hit: j2.hit, d: (j1.d + j2.d) / 2 };
+    }
+    const out = shoot(env, angle, power, path, undefined, env.out);
+    const j = judge(env, out);
+    let hit = j.hit;
+    if (env.apex && hit) {
+      const o2 = env.out2;
+      hit = judge(env, shoot(env, angle, power, null, -35, o2)).hit && judge(env, shoot(env, angle, power, null, -5, o2)).hit;
+    }
+    return { out, hit, d: j.d };
+  }
+  const hitAt = (env, a, p) => evalShot(env, a, p, null).hit;
+
+  /** 목표 조준점 (aimX, aimY) 을 지나는 탄도의 힘 (정확 해 — Sim 의 반암시적 오일러까지 반영). 없으면 -1 */
+  function analytic(env, angle) {
+    const f = env.facing, a = angle * Math.PI / 180, A = f * Math.cos(a), B = Math.sin(a);
+    const mz = muzzleAt(env.pivot, angle), dx = env.aimX - mz.x, dy = env.aimY - mz.y;
+    const wax = env.ax / SIM_DT, g = env.ay / SIM_DT;
+    const den = B * wax + A * g, num = B * dx + A * dy;
+    if (Math.abs(den) < 1e-9) return -1;
+    const q = 2 * num / den;
+    if (!(q > 0)) return -1;
+    const dt = SIM_DT, t = (-dt + Math.sqrt(dt * dt + 4 * q)) / 2;
+    const st = (dx - 0.5 * wax * q) / A, s = st / t;
+    if (!(s > 0) || !isFinite(s)) return -1;
+    return s / (VMAX * env.speedMul) * 100;
+  }
+
+  /** 이 각도에서 목표에 맞는 힘 하나 찾기 (해석 해 → 필요하면 할선법으로 보정). {p, res} 또는 null */
+  function findPower(env, a, p0in) {
+    const p0 = p0in != null ? p0in : analytic(env, a);
+    if (p0 < 2 || p0 > 104) return null;
+    let p = round1(clampv(p0, 2, 100)), prevP = null, prevE = null, bestE = 1e9;
+    const mz = muzzleAt(env.pivot, a), span = Math.abs(env.aimX - mz.x);
+    for (let it = 0; it < 5; it++) {
+      const r = evalShot(env, a, p, null);
+      if (r.hit) return { p, res: r };
+      const o = r.out;
+      if (o.kind === 'out' && Math.abs(o.x - env.aimX) > 700) return null;
+      let e = env.facing * (o.x - env.aimX);
+      const ae = Math.abs(e);
+      if (ae > 500 || (it >= 2 && ae > bestE * 0.8)) return null;   // 더 좋아지지 않으면 포기 (막힌 각도에서 시간 낭비 방지)
+      bestE = Math.min(bestE, ae);
+      let slope = prevP != null && Math.abs(p - prevP) > 1e-6 ? (e - prevE) / (p - prevP) : 2 * span / Math.max(p, 5);
+      if (!(slope > 1)) slope = 2 * span / Math.max(p, 5);
+      prevP = p; prevE = e;
+      let np = p - e / slope;
+      np = clampv(np, p - 12, p + 12);
+      np = round1(clampv(np, 2, 100));
+      if (np === p) np = round1(p + (e > 0 ? -0.1 : 0.1));
+      p = np;
+    }
+    return null;
+  }
+
+  /** 맞는 힘 pc 에서 양쪽으로 넓혀 [lo,hi] (0.1 단위, 실제로 맞는 것만) */
+  function powerZone(env, a, pc) {
+    const edge = dir => {
+      let good = Math.round(pc * 10), bad = null, step = 5;
+      for (let i = 0; i < 14; i++) {
+        const q = good + dir * step;
+        if (q < 10 || q > 1000) { bad = clampv(q, 10, 1000); if (bad === good) break; if (hitAt(env, a, bad / 10)) { good = bad; bad = null; } break; }
+        if (hitAt(env, a, q / 10)) { good = q; step = Math.ceil(step * 1.7); } else { bad = q; break; }
+      }
+      if (bad != null) {
+        while (Math.abs(bad - good) > 1) {
+          const mid = Math.round((good + bad) / 2);
+          if (hitAt(env, a, mid / 10)) good = mid; else bad = mid;
+        }
+      }
+      return good / 10;
+    };
+    const lo = edge(-1), hi = edge(1);
+    return { lo, hi };
+  }
+
+  /** 좋은 정도 (작을수록 좋음): 각도는 ~50° (30~75), 힘은 30~95 가 가르치기 좋고, 초록 구간은 넓을수록 좋다 */
+  function anglePenalty(a) { return Math.abs(a - 50) * 0.6 + (a < 30 ? (30 - a) * 2.5 : 0) + (a > 75 ? (a - 75) * 3 : 0); }
+  function powerPenalty(p) { return (p < 30 ? (30 - p) * 1.5 : 0) + (p > 90 ? (p - 90) * 2 + (p > 95 ? (p - 95) * 8 : 0) : 0); }
+  function widthBonus(w) { return 12 * (1 - Math.exp(-w / 2.5)); }
+  function narrowPenalty(w) { return w < 1 ? 40 : w < 1.5 ? 22 : w < 2.5 ? 9 : w < 4 ? 2 : 0; }
+  /** 각도 허용 폭(도)이 0~2 도면 방향키로 맞추기 힘들다 (G 는 정확히 맞춤) → 웬만하면 더 넓은 각도를 고른다 */
+  function angleWinPenalty(span) { return span <= 0 ? 16 : span === 1 ? 8 : span === 2 ? 3 : 0; }
+  /** 이 힘 그대로 정수 각도를 위/아래로 움직여도 맞는 범위 */
+  function angleWindow(env, a, p) {
+    let lo = a, hi = a;
+    for (let k = 1; k <= 25 && a - k >= 0; k++) { if (hitAt(env, a - k, p)) lo = a - k; else break; }
+    for (let k = 1; k <= 25 && a + k <= 90; k++) { if (hitAt(env, a + k, p)) hi = a + k; else break; }
+    return { lo, hi };
+  }
+  /** 초록 구간이 이보다 좁으면 (힘 0.1 단위 몇 칸뿐) 추천하지 않고 자리를 옮기게 한다 */
+  const MIN_ZONE = 1.0;
+
+  function aimSetup(env, target) {
+    const off = env.win ? (env.win.lo + env.win.hi) / 2 : 0;
+    env.aimX = target.x - off; env.aimY = target.y - 14;
+  }
+
+  /**
+   * 추천: 목표에 맞는 (각도, 힘) 과 허용 구간.
+   *  반환 { ok, reason, angle, power, pLo, pHi, aLo, aHi, facing, dist, blast, tol, d, selfRisk }
+   *   reason: 'notarget' | 'mound' | 'far' | 'blocked' | 'roof' | 'narrow'(맞는 힘 구간이 1 미만: 추천 안 함) | ''(ok)
+   */
+  function solve(mask, players, shooter, targetId, weapon, wind, opts) {
+    opts = Object.assign({}, opts, { targetId });
+    const rec = { ok: false, reason: 'notarget', angle: 45, power: 50, pLo: 0, pHi: 0, aLo: 45, aHi: 45, facing: shooter.facing || 1, dist: 0, blast: 0, tol: 0, d: 0, selfRisk: false };
+    const target = players.find(p => p.id === targetId);
+    if (!target || !target.alive) return rec;
+    rec.dist = Math.hypot(target.x - shooter.x, target.y - shooter.y);
+    const facing = opts.facing || (target.x >= shooter.x ? 1 : -1);
+    rec.facing = facing;
+    if (wclass(weapon) === 'mound') { rec.reason = 'mound'; return rec; }
+    const env = makeEnv(mask, players, shooter, facing, weapon, wind, opts);
+    rec.blast = env.R; rec.tol = env.tol;
+    if (!env.target) { rec.reason = 'blocked'; return rec; }
+    if (env.cls !== 'shell' && !env.win) { rec.reason = 'roof'; return rec; }   // 위성/폭격/눈보라: 머리 위가 막혀 닿을 수 없음
+    aimSetup(env, env.target);
+    // 각도는 50° 에서 가까운 순으로 훑는다. 각도마다 (해석 해 → 필요하면 보정) 으로 맞는 힘을 찾고,
+    // 초록 구간(허용 폭)을 계산해 "가르치기 좋고 폭이 넓은" 것을 고른다.
+    // 해석 해로 미리 추정한 최선의 점수가 지금 최고점을 못 이기면 시뮬레이션 없이 건너뛴다 (가지치기).
+    const ballistic = env.cls === 'shell' && !weapon.homing && !weapon.drill && !weapon.bounce;
+    const widen = weapon.homing ? 14 : (weapon.drill || weapon.bounce) ? 2 : 1;
+    let best = null, zones = 0, anyAnalytic = false;
+    const cands = [];
+    const shots0 = SHOTS;
+    /** (각도 a, 이 각도에서 맞는 힘 하나 r.p) → 초록 구간·점수를 계산해 후보로 등록 */
+    const consider = (a, r) => {
+      zones++;
+      const z = powerZone(env, a, r.p), width = z.hi - z.lo, pm = round1((z.lo + z.hi) / 2);
+      const pmid = hitAt(env, a, pm) ? pm : r.p;
+      const res = evalShot(env, a, pmid, null);
+      let self = false;
+      if (!env.noSelf && res.out.kind !== 'sea') {
+        const sx = shooter.x - res.out.x, sy = shooter.y - 14 - res.out.y;
+        self = Math.sqrt(sx * sx + sy * sy) < env.R + env.hitR + 6;
+      }
+      const score = anglePenalty(a) + powerPenalty(pmid) - widthBonus(width) + narrowPenalty(width) + (self ? 60 : 0);
+      const cand = { a, p: pmid, z, width, score, self, d: res.d };
+      cands.push(cand);
+      if (!best || score < best.score) best = cand;
+    };
+    for (let d = 0; d <= 50; d++) {
+      if (!best && SHOTS - shots0 > 380) break;   // 아무리 찾아도 없으면 (막힌 지형) 오래 붙잡지 않는다
+      for (let sgn = 1; sgn >= (d ? -1 : 1); sgn -= 2) {
+        const a = 50 + sgn * d;
+        if (a < 0 || a > 89) continue;      // 0° (수평)까지: 절벽 아래 목표는 거의 수평으로 쏘면 맞는다
+        const p0 = analytic(env, a);
+        if (p0 > 2) anyAnalytic = true;
+        if (p0 < 2 || p0 > 104) continue;
+        const ap = anglePenalty(a);
+        if (best) {
+          const span = Math.max(80, Math.abs(env.aimX - muzzleAt(env.pivot, a).x));
+          const wEst = ballistic ? 0.8 * env.tol * p0 / span : Math.min(14, widen * 0.8 * env.tol * p0 / span);   // 보통 실제 폭은 이 값의 0.6~0.9배
+          if (ap + powerPenalty(p0) - widthBonus(wEst) >= best.score) continue;
+          if (zones >= 12) continue;
+        }
+        const r = findPower(env, a, p0);
+        if (r) consider(a, r);
+      }
+    }
+    // 해석 해(목표 중심을 정확히 지나는 탄도)가 전부 막혔어도, 높은 섬·절벽 위 목표는 '벽에 맞고 목표 근처에서 터지는' 조합이 있을 수 있다.
+    // 그럴 땐 굵은 격자로 한 번 더 찾는다 (드문 경우라 발사 수를 500 안으로 제한)
+    if (!best && env.cls === 'shell' && anyAnalytic && rec.dist < 1900) {
+      const s1 = SHOTS;
+      for (let d = 0; d <= 30 && SHOTS - s1 < 500 && cands.length < 3; d += 3) {
+        for (let sgn = 1; sgn >= (d ? -1 : 1) && cands.length < 3; sgn -= 2) {
+          const a = 50 + sgn * d;
+          for (let pw = 100; pw >= 40; pw -= 3) {
+            if (hitAt(env, a, pw)) { consider(a, { p: pw }); break; }
+          }
+        }
+      }
+    }
+    if (!best) { rec.reason = anyAnalytic && rec.dist < 1900 ? 'blocked' : 'far'; return rec; }
+    // 3) 각도 허용 구간 (그 힘 그대로, 정수 각도). 폭이 0~2 도로 너무 좁으면 다음 후보들과 비교해서 더 넓은 것을 고른다
+    cands.sort((x, y) => x.score - y.score);
+    let fin = null;
+    for (let i = 0; i < cands.length && i < 4; i++) {
+      const c = cands[i];
+      c.aw = angleWindow(env, c.a, c.p);
+      c.final = c.score + angleWinPenalty(c.aw.hi - c.aw.lo);
+      if (!fin || c.final < fin.final) fin = c;
+      if (c.aw.hi - c.aw.lo >= 3 && i === 0) break;      // 첫 후보가 충분히 넓으면 더 볼 필요 없음
+    }
+    best = fin;
+    rec.angle = best.a; rec.power = best.p; rec.pLo = best.z.lo; rec.pHi = best.z.hi; rec.selfRisk = best.self; rec.d = best.d;
+    rec.aLo = best.aw.lo; rec.aHi = best.aw.hi;
+    if (best.width < MIN_ZONE) { rec.reason = 'narrow'; return rec; }     // 머리카락처럼 얇은 해: 추천하지 않고 자리를 옮기게 (ok=false)
+    rec.ok = true; rec.reason = '';
+    return rec;
+  }
+
+  /** 지금 각도(정수)에서 목표에 맞는 힘 구간 → { ok, power, pLo, pHi } */
+  function zoneAt(mask, players, shooter, targetId, weapon, wind, angle, opts) {
+    opts = Object.assign({}, opts, { targetId });
+    const target = players.find(p => p.id === targetId);
+    if (!target || !target.alive || wclass(weapon) === 'mound') return { ok: false };
+    const facing = opts.facing || (target.x >= shooter.x ? 1 : -1);
+    const env = makeEnv(mask, players, shooter, facing, weapon, wind, opts);
+    if (!env.target || (env.cls !== 'shell' && !env.win)) return { ok: false };
+    aimSetup(env, env.target);
+    let r = findPower(env, angle);
+    // 해석 해가 안 맞아도, 추천값(seedPower)이 이 각도에서 실제로 맞으면 거기서부터 구간을 넓힌다
+    if (!r && opts.seedPower != null && hitAt(env, angle, round1(opts.seedPower))) r = { p: round1(opts.seedPower) };
+    if (!r) return { ok: false };
+    const z = powerZone(env, angle, r.p), pm = round1((z.lo + z.hi) / 2);
+    return { ok: true, power: hitAt(env, angle, pm) ? pm : r.p, pLo: z.lo, pHi: z.hi };
+  }
+
+  /**
+   * 궤적 예측 (미리보기용): 이 각도/힘으로 쏘면 어디에 떨어지나
+   *  → { path:[[x,y]..]|null, land:{x,y,r,kind,band?}, hit(목표 명중), hitIds(피해 입는 적/아군 id 후보), self(내가 다침), kind }
+   *  opts: { targetId, rules, path:false(경로 생략) }
+   */
+  function traj(mask, players, shooter, facing, angle, power, weapon, wind, opts) {
+    opts = opts || {};
+    const env = makeEnv(mask, players, shooter, facing, weapon, wind, opts);
+    const path = opts.path === false ? null : [];
+    const r = evalShot(env, angle, power, path);
+    const o = r.out, land = { x: o.x, y: o.y, r: env.R, kind: o.kind };
+    if (env.win) land.band = { x0: o.x + env.win.lo, x1: o.x + env.win.hi };
+    // 이 폭발이 피해를 주는 사람 (일반탄: 폭발 반경+피격 반경 / 위성: 가로 범위)
+    const hits = [];
+    let self = false;
+    if (o.kind !== 'sea' && o.kind !== 'out' && o.kind !== 'timeout' && env.cls !== 'mound') {
+      for (const p of env.list) {
+        if (!p.alive) continue;
+        let dmg;
+        if (env.cls === 'shell') { const d = Math.hypot(p.x - o.x, p.y - 14 - o.y); dmg = d < env.R + env.hitR; }
+        else if (env.cls === 'orbital') dmg = Math.abs(p.x - o.x) < env.R + 14;
+        else dmg = env.win && p.x - o.x >= env.win.lo && p.x - o.x <= env.win.hi;
+        if (!dmg) continue;
+        if (p.id === env.sid) { if (!env.noSelf) self = true; } else hits.push(p.id);
+      }
+    }
+    return { path, land, hit: r.hit, d: r.d, hits, self, kind: o.kind, tank: o.tank ? o.tank.id : null, cls: env.cls };
+  }
+
+  return { traj, solve, zoneAt, muzzleAt, pivotOf, wclass, stats: () => ({ shots: SHOTS, steps: STEPS }), analytic: (mask, players, shooter, facing, angle, weapon, wind, aim, opts) => {
+    const env = makeEnv(mask, players, shooter, facing, weapon, wind, opts); env.aimX = aim.x; env.aimY = aim.y; return analytic(env, angle);
+  } };
+})();
+
+/* =========================================================
+ *  Assist 엔진 (게임 쪽)
+ * ========================================================= */
+/** 힘 구간이 게이지의 절반을 넘게 넓으면 (예: 1~100) 숫자 대신 '아무 때나' 라고 알려준다 */
+const WIDE_ZONE = 60;
 const Assist = {
-  level: 0, state: null,
-  allowed() { return false; }, setLevel() {}, cycle() {}, autoAim() {},
-  onTurn() {}, tick() {}, reset() {}
+  level: 0,                 // 0 끄기 · 1 궤적 · 2 전체(궤적 + 추천 각도/힘)
+  userSet: false,           // 이번 판에서 사람이 직접 바꿨는가 (안 바꿨으면 기본값: 비기너 2 / 그 외 0)
+  target: null,             // 목표 플레이어 id
+  state: {
+    active: false, level: 0, target: null, rec: null, path: null, land: null,
+    msg: { step: 1, text: '', tone: 'info', icon: '', sub: '', c: '' },
+    inAngle: false, inPower: false, zone: null, hit: false, steps: ['todo', 'todo', 'todo'], angle: 0, power: 0, charging: false, targetName: '', offHint: false
+  },
+  _picked: false, _sig: '', _nextT: 0, _aim: null, _wasIn: false, _zoneKey: '', _zone: null, _rec: null, _recFor: '', _busy: 0,
+
+  /** 이 판에서 도우미를 쓸 수 있는가: 비기너 매치이거나 로컬 연습(온라인 일반 방은 공정성을 위해 금지) */
+  allowed() {
+    try { return typeof G !== 'undefined' && !!G && !G.attract && (G.beginner === true || !!(G.backend && G.backend.local)); }
+    catch (e) { return false; }
+  },
+  defaultLevel() { return typeof G !== 'undefined' && G && G.beginner === true ? 2 : 0; },
+  setLevel(n) {
+    n = ((Math.round(+n) || 0) % 3 + 3) % 3;
+    if (!this.allowed()) n = 0;
+    this.level = n; this.userSet = true; this._sig = ''; this._aim = null;
+    this._notify();
+  },
+  cycle() {
+    if (!this.allowed()) { this._say('이 방에서는 조준 도우미를 쓸 수 없어요'); return; }
+    this.setLevel((this.level + 1) % 3);
+    const back = this._touch() ? '🎯 버튼을 누르면 다시 켜져요' : 'H 를 누르면 다시 켜져요';
+    this._say(['🎯 조준 도우미: 꺼졌어요 · ' + back, '🎯 조준 도우미 1단계: 점선 궤적', '🎯 조준 도우미 2단계: 궤적 + 추천 각도·힘'][this.level]);
+    if (typeof Sound !== 'undefined' && Sound.play) Sound.play('click');
+  },
+  /** 터치 화면(휴대폰·태블릿)이면 키보드 말투 대신 화면 버튼 말투로 안내한다 */
+  _touch() { try { return typeof document !== 'undefined' && !!document.body && document.body.classList.contains('touch'); } catch (e) { return false; } },
+  /** 힘 충전을 취소할 수 있는 판인가 (Game.canCancelCharge: 비기너·로컬 연습) */
+  _canCancel() { try { return typeof canCancelCharge === 'function' && !!canCancelCharge(); } catch (e) { return false; } },
+  /** 솔버에 넘기는 옵션: 지형 버전(크레이터/얼음벽마다 바뀜)을 같이 넘겨 폭격류 '창' 캐시가 낡은 지형으로 재사용되지 않게 한다 */
+  _opts(tid) { return { targetId: tid, terrainKey: G.terrain ? G.terrain.ops.length : 0 }; },
+  _say(msg) { try { if (typeof toast === 'function') toast(msg); } catch (e) { /* 무시 */ } },
+  _notify() { try { if (typeof updateHud === 'function' && G.screen === 'play') updateHud(true); } catch (e) { /* 무시 */ } },
+
+  /** 사람 턴 시작 (Game.beginTurn) */
+  onTurn(p, ctl) { this._guard(() => this._onTurn(p, ctl)); },
+  _onTurn(p, ctl) {
+    if (!p || !this.allowed()) { this._clear(); return; }
+    if (!this.userSet) this.level = this.defaultLevel();
+    this._aim = null; this._sig = ''; this._zoneKey = ''; this._wasIn = false; this._rec = null; this._nextT = 0; this._picked = false;
+    this.target = this._nearest(p);
+    if (this.level >= 2) {
+      const t = this.target != null ? findPlayer(this.target) : null;
+      if (t && Math.abs(t.x - p.x) > 4) p.facing = t.x >= p.x ? 1 : -1;   // 로컬 상태(발사 params 에 원래 실림)만 바꿈
+    }
+    this._notify();
+  },
+  reset() {
+    this.level = 0; this.userSet = false; this.target = null; this._aim = null; this._clear();
+  },
+  _clear() {
+    const s = this.state;
+    s.active = false; s.rec = null; s.path = null; s.land = null; s.zone = null; s.hit = false; s.inAngle = false; s.inPower = false; s.target = null;
+    s.level = this.level; s.charging = false; s.slow = false; s.offHint = false;
+    this._rec = null; this._sig = ''; this._wasIn = false;
+  },
+
+  /* ---------- 목표 ---------- */
+  _enemies(p) {
+    const en = typeof isEnemy === 'function' ? isEnemy : (a, b) => a.id !== b.id && !(G.teamMode && a.team && a.team === b.team);
+    return G.players.filter(o => o.alive && !o.sunk && !o.left && en(p, o));
+  },
+  _nearest(p) {
+    let best = null, bd = 1e9;
+    for (const o of this._enemies(p)) { const d = Math.hypot(o.x - p.x, o.y - p.y); if (d < bd) { bd = d; best = o; } }
+    return best ? best.id : null;
+  },
+  nextTarget() {
+    const p = curPlayerSafe();
+    if (!p || !this.state.active && !this._humanTurn()) return;
+    const list = this._enemies(p).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y));
+    if (!list.length) return;
+    const i = list.findIndex(o => o.id === this.target);
+    this._setTarget(list[(i + 1) % list.length].id);
+  },
+  _setTarget(id) {
+    if (id === this.target) return;
+    this.target = id; this._picked = true; this._sig = ''; this._zoneKey = ''; this._nextT = 0;
+    if (typeof Sound !== 'undefined' && Sound.play) Sound.play('select');
+  },
+  /** 화면 좌표 (클릭/탭) 로 적 탱크 고르기. 골랐으면 true */
+  pickAt(sx, sy) {
+    const p = curPlayerSafe();
+    if (!p || !this._humanTurn() || this.level < 1 || !this.allowed()) return false;
+    let best = null, bd = 1e9;
+    const rad = Math.max(40, 30 * G.scale);
+    for (const o of this._enemies(p)) {
+      const s = w2s(o.x, o.y - 14), d = Math.hypot(s.x - sx, s.y - sy);
+      if (d < rad && d < bd) { bd = d; best = o; }
+    }
+    if (!best) return false;
+    this._setTarget(best.id);
+    return true;
+  },
+  _humanTurn() {
+    const c = G.ctl;
+    return !!(c && !c.ai && !c.done && G.turn && !G.turn.done && G.screen === 'play' && !G.attract);
+  },
+
+  /* ---------- 자동 조준 ---------- */
+  autoAim() {
+    const st = this.state, p = curPlayerSafe();
+    if (!st.active || !p) return;
+    const rec = st.rec;
+    if (!rec || !rec.ok) { this._say(rec && rec.reason === 'mound' ? '얼음벽은 원하는 곳에 자유롭게 쏴요!' : '가까이 가 볼까요? ◀ ▶ 로 움직여요'); return; }
+    if (G.ctl && G.ctl.charging) return;
+    if (p.facing !== rec.facing) p.facing = rec.facing;
+    this._aim = { to: rec.angle };
+    if (typeof Sound !== 'undefined' && Sound.play) Sound.play('select');
+  },
+
+  /** 힘 충전 속도 배율 (Game.humanUpdate 가 매 프레임 곱함). 초록 구간 앞 12 부터 서서히 느려져 구간 안에서는 ~0.02~0.6 배.
+   *  "지금 놓으세요!!" 를 보고 손을 떼기까지 아이는 0.3~0.6초가 걸린다 → 구간 안에서 비기너 ~1초, 일반 ~0.65초 머물게 한다.
+   *  (tools/test-kidbot.js: 이전 0.32초 구간에서는 반응 0.3초 봇이 16발 모두 구간 끝을 넘겨 빗나갔다) */
+  chargeMul(c) {
+    const st = this.state, z = st.zone;
+    if (this.level < 2 || !st.active || !st.inAngle || !z || !c || !c.charging) return 1;
+    const spd = typeof RULES !== 'undefined' && RULES.chargeSpeed ? RULES.chargeSpeed : 52;
+    const dwell = typeof G !== 'undefined' && G.beginner === true ? 1.0 : 0.65;
+    const fz = clamp((z.pHi - z.pLo) / dwell / spd, 0.02, 0.6);      // 초록 구간 안에서의 배율 (좁을수록 더 천천히)
+    const pw = c.power;
+    if (pw <= z.pLo - 12 || pw >= z.pHi + 2) return 1;
+    const t = clamp((z.pLo - pw) / 12, 0, 1);                        // 구간 12 앞(1) → 구간 시작(0): 속도가 직선으로 줄어듦
+    return fz + (1 - fz) * t;
+  },
+
+  /* ---------- 매 프레임 (Game 루프, updateControl 직후) ---------- */
+  tick(dt) { this._guard(() => this._tick(dt)); },
+  /** 도우미에서 예외가 나도 게임 루프(Game.assistCall)가 도우미를 꺼 버리지 않도록 여기서 삼킨다 */
+  _guard(fn) {
+    try { fn(); }
+    catch (e) { if (!this._errN) { this._errN = 0; } if (++this._errN <= 3) console.error('Assist 오류', e); this._clear(); this._aim = null; }
+  },
+  _tick(dt) {
+    const st = this.state;
+    if (!this.allowed()) { if (this.level !== 0) this.level = 0; if (st.active) this._clear(); st.level = 0; st.offHint = false; return; }
+    if (this.level <= 0 || !this._humanTurn() || G.busy) {
+      if (st.active || st.level !== this.level) this._clear();
+      st.level = this.level;
+      // 비기너에서 도우미를 꺼 둔 채로도 '다시 켜기' 칩이 보이도록 (실수로 H 를 눌러도 되돌릴 수 있게)
+      st.offHint = this.level <= 0 && G.busy !== true && this._humanTurn() && G.beginner === true;
+      return;
+    }
+    st.offHint = false;
+    const c = G.ctl, p = findPlayer(c.pid);
+    if (!p || !p.alive || p.cpu) { this._clear(); return; }
+    if (this.target == null || !this._validTarget(p, this.target)) { this.target = this._nearest(p); this._sig = ''; }
+    st.active = true; st.level = this.level; st.target = this.target;
+    st.charging = !!c.charging;
+    let tp = this.target != null ? findPlayer(this.target) : null;
+    st.targetName = tp ? tp.name : '';
+    const w = this._weapon(p, c);
+    if (!w) { this._clear(); return; }
+    const opts = this._opts(this.target);
+    const mask = G.terrain.mask, wind = G.turn.wind !== undefined ? G.turn.wind : (G.wind || 0);
+
+    /* 1) 추천값: 입력이 바뀌었을 때만 (걷는 동안은 잠깐씩 늦춰서) */
+    if (this.level >= 2 && tp) {
+      let sig = this._signature(p, c, w, tp, wind);
+      if (sig !== this._sig) {
+        const moving = (Input.left || Input.right) && !c.charging;
+        if (!moving || G.t >= this._nextT || !this._rec) {
+          this._zoneKey = '';
+          const t0 = performance.now();
+          let r = null;
+          try { r = AssistSolver.solve(mask, G.players, p, this.target, w, wind, opts); }
+          catch (e) { r = null; console.error('Assist.solve', e); }
+          // 사람이 목표를 직접 고르지 않았는데 지금 목표를 못 맞히면 → 맞힐 수 있는 다른 적으로 자동 전환
+          if (r && !r.ok && !this._picked && r.reason !== 'mound' && r.reason !== 'notarget') {
+            const alt = this._enemies(p).filter(o => o.id !== this.target).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y));
+            for (const o of alt) {
+              let r2 = null;
+              try { r2 = AssistSolver.solve(mask, G.players, p, o.id, w, wind, this._opts(o.id)); } catch (e) { r2 = null; }
+              if (r2 && r2.ok) {
+                this._say('🎯 앞이 막혀서 ' + o.name + ' 쪽으로 목표를 바꿨어요');
+                this.target = o.id; tp = o; r = r2; st.target = o.id; st.targetName = o.name;
+                if (!c.charging && !(c.fuelUsed > 0)) p.facing = r2.facing;
+                sig = this._signature(p, c, w, o, wind);
+                break;
+              }
+            }
+          }
+          this._sig = sig; this._rec = r;
+          this._busy = performance.now() - t0;
+          this._nextT = G.t + Math.max(0.15, this._busy / 1000 * 8);
+        }
+      }
+      st.rec = this._rec;
+    } else { st.rec = null; this._rec = null; this._sig = ''; }
+    const rec = st.rec;
+
+    /* 2) 자동 조준 (부드럽게) */
+    if (this._aim) {
+      if (c.charging || Input.up || Input.down || !rec || !rec.ok) this._aim = null;
+      else {
+        const d = this._aim.to - p.angle;
+        if (Math.abs(d) < 0.35) { p.angle = this._aim.to; this._aim = null; }
+        else p.angle = clamp(p.angle + clamp(d, -Math.max(35, Math.abs(d) * 5) * dt, Math.max(35, Math.abs(d) * 5) * dt), 0, 90);
+      }
+    }
+
+    /* 3) 지금 각도에서의 힘 구간 (정수 각도 기준, 각도가 바뀔 때만) */
+    const angI = Math.round(p.angle);
+    st.angle = angI;
+    st.inAngle = false; st.zone = null;
+    if (rec && rec.ok) {
+      const facingOk = p.facing === rec.facing;
+      if (facingOk && angI >= rec.aLo && angI <= rec.aHi) {
+        const zk = this._sig + '|' + angI;
+        if (zk !== this._zoneKey) {
+          this._zoneKey = zk;
+          try { this._zone = AssistSolver.zoneAt(mask, G.players, p, this.target, w, wind, angI, Object.assign(this._opts(this.target), { seedPower: rec.power })); } catch (e) { this._zone = null; }
+        }
+        if (this._zone && this._zone.ok) { st.zone = this._zone; st.inAngle = true; }
+      }
+    }
+
+    /* 4-a) 초록 구간이 가까워지면 힘 막대가 천천히 올라가게 — 실제 감속은 Game.humanUpdate 가 Assist.chargeMul() 로 곱한다
+     *      (발사 프레임의 마지막 증가분에도 똑같이 적용되도록. 로컬 입력값일 뿐 시뮬레이션과 무관) */
+    const spd = typeof RULES !== 'undefined' && RULES.chargeSpeed ? RULES.chargeSpeed : 52;
+    const fm = c.charging ? this.chargeMul(c) : 1;
+    st.slow = fm < 1;
+
+    /* 4) 궤적 미리보기 (정수 각도, 0.1 단위 힘 — 실제 발사와 같은 값) */
+    let pw = c.charging ? Math.round(c.power * 10) / 10 : 0;
+    if (!c.charging) {
+      if (this.level >= 2 && st.zone) pw = st.zone.power;
+      else if (this.level >= 2 && rec && rec.ok) pw = rec.power;
+      else pw = p.lastPower != null ? p.lastPower : 60;
+    }
+    st.power = c.charging ? c.power : 0;
+    st.path = null; st.land = null; st.hit = false;
+    if (pw > 0) {
+      try {
+        const tr = AssistSolver.traj(mask, G.players, p, p.facing, angI, clamp(pw, 1, 100), w, wind, this._opts(this.target));
+        st.path = tr.path; st.land = tr.land; st.hit = tr.hit;
+        st.land.self = tr.self; st.land.hitAny = tr.hits.length > 0; st.land.live = c.charging;
+        // 각도가 아직 안 맞은 채 쉬는 중(추천 힘으로 미리보기)에는 '맞아요' 표시를 하지 않는다 (코치 문장과 어긋나 보이지 않게)
+        if (this.level >= 2 && !c.charging && !st.inAngle) { st.hit = false; st.land.hitAny = false; }
+      } catch (e) { st.path = null; }
+    }
+
+    /* 5) 파워가 초록 구간에 들어온 순간 소리 */
+    // '지금 놓으세요' 는 "지금 놓아도 맞는" 때만: 놓는 프레임에 힘이 한 프레임치(inc) 더 오르므로 그만큼 여유를 둔다
+    const inc = st.zone ? Math.min(spd * fm * Math.min(0.05, Math.max(1 / 60, dt)), (st.zone.pHi - st.zone.pLo) * 0.35) : 0;
+    st.inPower = !!(c.charging && st.inAngle && st.zone && st.hit && pw >= st.zone.pLo && pw + inc <= st.zone.pHi);
+    if (st.inPower && !this._wasIn && !(st.zone && st.zone.pHi - st.zone.pLo > WIDE_ZONE) && typeof Sound !== 'undefined' && Sound.play) Sound.play('ready');
+    this._wasIn = st.inPower;
+
+    /* 6) 코치 메시지 */
+    this._message(p, c, w, tp);
+  },
+
+  _validTarget(p, id) { const o = findPlayer(id); return !!(o && o.alive && !o.sunk && !o.left && this._enemies(p).indexOf(o) >= 0); },
+  _weapon(p, c) {
+    const T = TANKS[p.tank]; let w = T && T.weapons[c.weapon];
+    if (w && c.item === 'power' && typeof poweredWeapon === 'function') w = poweredWeapon(w);
+    return w || null;
+  },
+  _signature(p, c, w, tp, wind) {
+    let s = [Math.round(p.x * 2), Math.round(p.y * 2), c.weapon, c.item || '', wind, G.terrain.ops.length, tp.id, Math.round(tp.x * 2), Math.round(tp.y * 2),
+      typeof RULES !== 'undefined' ? RULES.hitR + '/' + RULES.blastMul : '', p.facing === (tp.x >= p.x ? 1 : -1) ? 1 : 0].join(',');
+    for (const o of G.players) if (o !== p && o !== tp) s += '|' + (o.alive ? Math.round(o.x) + ',' + Math.round(o.y) : 'x');
+    return s;
+  },
+
+  /** 코치 카드에 보여줄 문장 (짧고 큰 글씨용). msg = { step, tone, icon, text, sub, c }  — c 는 좁은 화면(휴대폰 가로)용 한 줄 (숫자까지 큰 글씨로) */
+  _message(p, c, w, tp) {
+    const st = this.state, rec = st.rec, tc = this._touch();
+    const M = (step, tone, icon, text, sub, cmp) => { st.msg = { step, tone, icon, text, sub: sub || '', c: cmp || text }; };
+    const HOLD = tc ? '빨간 발사 버튼을 꾹 눌러' : 'Space 를 꾹 눌러';       // 터치에는 Space / 방향키가 없다
+    const RELEASE = tc ? '손을 떼요!' : 'Space 를 떼요!';
+    const NEXTT = tc ? '🔄' : 'T';
+    const CANCEL = tc ? '✋ 버튼으로' : 'Esc 로';
+    st.steps = ['todo', 'todo', 'todo'];
+    if (this.level < 2) {
+      if (c.charging && st.hit) M(2, 'go', '🟢', '지금 놓으세요!!', '점선 끝이 초록이에요');
+      else M(1, 'info', '🎯', '점선이 적에게 닿게 맞춰요', tc ? '▲▼ 각도 · 발사 버튼 꾹 힘' : '▲▼ 각도 · Space 꾹 힘');
+      return;
+    }
+    if (!tp) { M(1, 'warn', '🤔', '목표가 없어요', ''); return; }
+    if (!rec) { M(1, 'info', '🤔', '계산 중…', ''); return; }
+    if (!rec.ok) {
+      st.steps[0] = 'active';
+      if (rec.reason === 'mound') M(1, 'info', '🧊', '얼음벽은 세우고 싶은 곳에!', '점선 끝에 벽이 생겨요');
+      else if (rec.reason === 'far') M(1, 'warn', '🚶', '가까이 가 볼까요?', '◀ ▶ 로 목표 쪽으로 움직여요');
+      else if (rec.reason === 'roof') M(1, 'warn', '☁️', '머리 위가 막혀 있어요', '다른 무기나 다른 목표(' + NEXTT + ')는 어때요?');
+      else if (rec.reason === 'narrow') M(1, 'warn', '🚶', '자리를 옮겨 볼까요?', '◀ ▶ 로 조금 움직이면 더 쉬워져요', '자리를 옮겨 볼까요? ◀ ▶');
+      else M(1, 'warn', '🚧', '앞이 막혀 있어요', '◀ ▶ 로 자리를 옮기거나 ' + NEXTT + ' 로 다른 목표!', '앞이 막혔어요! ◀ ▶ 로 옮겨요');
+      return;
+    }
+    const dirName = rec.facing > 0 ? '오른쪽 ▶' : '◀ 왼쪽';
+    if (p.facing !== rec.facing) {
+      st.steps[0] = 'active';
+      M(1, 'warn', rec.facing > 0 ? '👉' : '👈', '목표 쪽을 봐요!', tc ? (rec.facing > 0 ? '▶' : '◀') + ' 버튼을 눌러요 (' + dirName + ')' : (rec.facing > 0 ? '→' : '←') + ' 키를 눌러요 (' + dirName + ')',
+        '목표 쪽을 봐요! ' + (rec.facing > 0 ? '▶' : '◀'));
+      return;
+    }
+    const a = st.angle, diff = rec.angle - a;
+    if (!st.inAngle) {
+      st.steps[0] = 'active';
+      if (c.charging) {
+        // 각도가 안 맞은 채로 힘을 채우는 중: 놓으면 그대로 발사되니 먼저 알려주고, 취소할 방법도 알려준다
+        if (this._canCancel()) M(1, 'warn', '✋', '각도부터 맞춰요!', CANCEL + ' 취소하고 ▲▼ 로 맞춰요', '각도부터! ' + (tc ? '✋' : 'Esc') + ' 취소');
+        else M(1, 'warn', '✋', '각도부터 맞춰요!', '지금 놓으면 그대로 발사돼요', '각도부터 맞춰요!');
+        return;
+      }
+      const t1 = diff > 0 ? (diff > 10 ? '많이 올려요!' : '조금 더 올려요!') : (diff < -10 ? '많이 내려요!' : '조금 내려요!');
+      M(1, 'act', diff > 0 ? '▲' : '▼', t1, '지금 ' + a + '° → ' + rec.angle + '°', t1.replace('!', '') + ' → ' + rec.angle + '°');
+      return;
+    }
+    st.steps[0] = 'done';
+    const z = st.zone, pw = c.charging ? Math.round(c.power * 10) / 10 : 0;
+    const zt = zoneText(z), wide = z && z.pHi - z.pLo > WIDE_ZONE;
+    if (!c.charging) {
+      st.steps[1] = 'active';
+      const risk = rec.selfRisk ? ' ⚠ 폭발이 내게도 닿아요' : '';
+      if (wide) M(2, 'ok', '✅', '각도 딱 맞아요!', HOLD + ' 아무 때나 놓아도 맞아요!' + risk, '각도 OK! 꾹 눌렀다 놓아요');
+      else M(2, 'ok', '✅', '각도 딱 맞아요!', HOLD + ' 초록 구간(' + zt + ')까지!' + risk, '힘을 ' + zt + ' 까지 채워요');
+      return;
+    }
+    if (st.inPower) { st.steps[1] = 'done'; st.steps[2] = 'active'; M(3, 'go', '🟢', '지금 놓으세요!!', RELEASE); return; }
+    st.steps[1] = 'active';
+    if (pw < z.pLo) {
+      if (st.slow) M(2, 'act', '⏳', '거의 다 왔어요! 준비~', '천천히 올라가요 · 초록 구간 ' + zt);
+      else M(2, 'act', '⏩', '초록 구간까지 채워요!', '지금 ' + Math.round(pw) + ' → ' + zt, '초록 ' + zt + ' 까지! (지금 ' + Math.round(pw) + ')');
+    }
+    else if (pw <= z.pHi) { st.steps[1] = 'done'; st.steps[2] = 'active'; M(3, 'go', '🟢', '아슬아슬! 놓아요!!', RELEASE); }
+    else if (this._canCancel()) M(2, 'bad', '⚠️', '앗, 너무 세요!', CANCEL + ' 취소하고 다시! 초록 구간(' + zt + ')', '앗, 너무 세요! ' + (tc ? '✋' : 'Esc') + ' 취소');
+    else M(2, 'bad', '⚠️', '앗, 너무 세요!', '다음엔 초록 구간(' + zt + ')에서 놓아요');
+  }
 };
+
+function curPlayerSafe() { try { return typeof curPlayer === 'function' ? curPlayer() : null; } catch (e) { return null; } }
+/** 힘 구간 글자: 정수로 딱 떨어지면 "62~66", 너무 좁으면 "약 62", 게이지 대부분이 맞는 자리면 "어디서나" */
+function zoneText(z) {
+  if (!z) return '';
+  if (z.pHi - z.pLo > WIDE_ZONE) return '어디서나';
+  const lo = Math.ceil(z.pLo - 1e-9), hi = Math.floor(z.pHi + 1e-9);
+  return hi - lo >= 1 ? lo + '~' + hi : '약 ' + Math.round(z.power);
+}
+
+/* 키 (H 단계 · G 자동 조준 · T 다음 목표) / 화면 탭으로 목표 고르기 — 브라우저에서만 등록 */
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('keydown', e => {
+    try {
+      if (typeof G === 'undefined' || G.screen !== 'play' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.target && /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+      const k = e.code || '';
+      if (k === 'KeyH') Assist.cycle();
+      else if (k === 'KeyG') Assist.autoAim();
+      else if (k === 'KeyT') Assist.nextTarget();
+    } catch (err) { /* 도우미 오류가 게임을 멈추지 않도록 */ }
+  });
+  let down = null;
+  window.addEventListener('pointerdown', e => { down = e.target === G.canvas ? { x: e.clientX, y: e.clientY, id: e.pointerId } : null; });
+  window.addEventListener('pointerup', e => {
+    try {
+      if (!down || down.id !== e.pointerId) return;
+      const d = Math.hypot(e.clientX - down.x, e.clientY - down.y); down = null;
+      if (d > 9 || G.screen !== 'play' || e.target !== G.canvas) return;
+      if (typeof mmHit === 'function' && mmHit(e.clientX, e.clientY)) return;
+      Assist.pickAt(e.clientX, e.clientY);
+    } catch (err) { /* 무시 */ }
+  });
+}
 </script>
 
 <script>
@@ -7286,7 +8606,10 @@ function followZoom() { return clamp(Math.max(1.4, VW.cover * 1.15), 1, 2.2); }
 function camClamp(x, y, z) {
   const s = VW.base * z, hw = VW.aw / 2 / s, hh = VW.ah / 2 / s;
   const ext = Cam.ext || 0;  // 탄이 맵 위로 높이 뜨면 하늘을 위로 확장
-  return { x: hw * 2 >= W ? W / 2 : clamp(x, hw, W - hw), y: hh * 2 >= H + ext ? (H - ext) / 2 : clamp(y, hh - ext, H - hh) };
+  // 조준 도우미 코치 카드가 화면 아래쪽에 앉는 동안(Cam.rsv, 화면 px)에는 맵 바닥 아래로 그만큼 더 내려갈 수 있다 →
+  // 골짜기(맵 맨 아래)에 있는 목표 탱크도 카드/HUD 위로 끌어올려 보여줄 수 있다
+  const lo = hh - ext, hi = H - hh + (Cam.rsv || 0) / s;
+  return { x: hw * 2 >= W ? W / 2 : clamp(x, hw, W - hw), y: lo > hi ? (lo + hi) / 2 : clamp(y, lo, hi) };
 }
 function applyCam() {
   const z = Cam.zoom, q = camClamp(Cam.x, Cam.y, z);
@@ -7351,9 +8674,17 @@ function updateCamera(dt) {
     const h = Cam.holds[Cam.holds.length - 1]; Cam.tx = h.x; Cam.ty = h.y;
   } else if (!Cam.manual) {
     const p = curPlayer();
-    if (p && p.alive) { Cam.tx = p.x + p.facing * 110; Cam.ty = p.y - 110; Cam.tz = fz; k = 2.6; }
+    if (p && p.alive) {
+      Cam.tx = p.x + p.facing * 110; Cam.ty = p.y - 110; Cam.tz = fz; k = 2.6;
+      const fr = assistFrame(p, fz, Cam.tx, Cam.ty);
+      if (fr) { Cam.tx = fr.x; Cam.ty = fr.y; Cam.tz = fr.z; }
+    }
     else if (!G.turn) { Cam.tz = Math.max(1, Cam.tz - dt * 0.3); }
   }
+  // 코치 카드 자리(화면 px)를 부드럽게 늘였다 줄였다 — 카드가 없을 땐 0 이라 기존 카메라와 똑같다
+  const rsvT = !Cam.full && !Cam.manual && !G.anim && !Cam.holds.length ? Math.max(0, VW.coachRsv || 0) : 0;
+  Cam.rsv = lerp(Cam.rsv || 0, rsvT, 1 - Math.exp(-6 * dt));
+  if (Cam.rsv < 0.5 && rsvT === 0) Cam.rsv = 0;
   // 부드럽게 따라가기 (배율은 로그 공간)
   const a = 1 - Math.exp(-k * dt), az = 1 - Math.exp(-kz * dt);
   const tq = camClamp(Cam.tx, Cam.ty, Cam.tz);
@@ -7362,6 +8693,43 @@ function updateCamera(dt) {
     Cam.x = lerp(Cam.x, tq.x, a); Cam.y = lerp(Cam.y, tq.y, a);
   }
   applyCam();
+}
+/** 조준 도우미가 켜진 내 차례: 내 탱크 + 목표 탱크(이름표 포함)가 HUD 와 코치 카드에 가려지지 않도록 카메라를 잡는다.
+ *  기본 추적 화면에서 이미 다 보이면 그대로 두고, 안 보일 때만 필요한 만큼 (위로 밀기 → 그래도 안 되면 축소) 움직인다.
+ *  화면 여백은 px(줌과 무관), 탱크 위치는 월드 좌표. 반환 {x, y, z} (없으면 null) */
+function assistFrame(p, fz, dx, dy) {
+  const st = assistState(), c = G.ctl;
+  if (!st || st.level < 1 || !c || c.ai || c.done || c.pid !== p.id) return null;
+  const k = UI_K(), TS = TANK_SCALE, aw = VW.aw, ah = VW.ah;
+  const top = 8, bot = ah - (VW.coachRsv || 0) - 4, left = 14, right = aw - 14;
+  const pts = [
+    { x: p.x, y: p.y - 45 * TS, up: 64 * k, dn: 0, sd: 46 * k },       // 내 탱크 꼭대기 + 이름표
+    { x: p.x, y: p.y + 6, up: 0, dn: 6, sd: 46 * k }                    // 내 탱크 바닥
+  ];
+  const tp = st.level >= 2 && st.target != null ? findPlayer(st.target) : null;
+  if (tp && tp.alive && !tp.sunk) {
+    pts.push({ x: tp.x, y: tp.y - 45 * TS, up: 104 * k, dn: 0, sd: 52 * k });   // 목표: 이름표 + '🎯 목표' 딱지
+    pts.push({ x: tp.x, y: tp.y + 6, up: 0, dn: 12, sd: 52 * k });
+  }
+  // 배율 z 에서 모든 점이 안전 영역 [left..right] x [top..bot] 안에 들어오는 카메라 중심 구간 (x: [xl, xu], y: [yl, yu])
+  const solve = z => {
+    const s = VW.base * z; let xl = -1e9, xu = 1e9, yl = -1e9, yu = 1e9;
+    for (const q of pts) {
+      xu = Math.min(xu, q.x - (left + q.sd - aw / 2) / s); xl = Math.max(xl, q.x + (q.sd - right + aw / 2) / s);
+      yu = Math.min(yu, q.y - (top + q.up - ah / 2) / s);  yl = Math.max(yl, q.y + (q.dn - bot + ah / 2) / s);
+    }
+    return { xl, xu, yl, yu, ok: xl <= xu && yl <= yu };
+  };
+  let z = fz, sol = solve(z);
+  if (!sol.ok) {
+    // 가장 큰(=가까운) 배율을 이분 탐색: 아래 zMin 까지 줄여도 안 되면 zMin 에서 가운데로
+    const zMin = 0.8;
+    let lo = zMin, hi = fz;
+    if (!solve(lo).ok) { z = lo; sol = solve(lo); }
+    else { for (let i = 0; i < 9; i++) { const m = (lo + hi) / 2; if (solve(m).ok) lo = m; else hi = m; } z = lo; sol = solve(z); }
+  }
+  const pick = (want, l, u) => l <= u ? clamp(want, l, u) : (l + u) / 2;
+  return { x: pick(dx, sol.xl, sol.xu), y: pick(dy, sol.yl, sol.yu), z };
 }
 function camManual() { Cam.manual = true; Cam.full = false; Cam.tx = Cam.x; Cam.ty = Cam.y; Cam.tz = Cam.zoom; Cam.holds = []; syncViewBtn(); }
 function toggleFullView() {
@@ -7476,6 +8844,7 @@ function render(dtIn) {
     ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(tl.x, tl.y); ctx.lineTo(tl.x, br.y); ctx.lineTo(br.x, br.y); ctx.lineTo(br.x, tl.y); ctx.stroke();
     drawAimGuide(ctx, t, cur);
     drawPlates(ctx, t, cur);
+    drawAssist(ctx, t, cur);
     drawOffscreen(ctx, t);
     drawWindTop(ctx, t);
     drawMinimap(ctx, t, cur);
@@ -7674,6 +9043,22 @@ function drawAimGuide(ctx, t, cur) {
   if (f > 0) ctx.arc(pv.x, pv.y, R, -a, 0); else ctx.arc(pv.x, pv.y, R, Math.PI, Math.PI + a);
   ctx.closePath(); ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(pv.x, pv.y, R, a0, a1); ctx.stroke();
+  // 조준 도우미: 이 각도면 맞아요 (초록 부채꼴) + 추천 각도 눈금
+  const ast = assistState(), arec = ast && ast.level >= 2 && ast.rec && ast.rec.ok && ast.rec.facing === f ? ast.rec : null;
+  if (arec) {
+    const lo = arec.aLo * Math.PI / 180, hi = arec.aHi * Math.PI / 180;
+    ctx.fillStyle = 'rgba(80,235,120,0.42)'; ctx.beginPath(); ctx.moveTo(pv.x, pv.y);
+    if (f > 0) ctx.arc(pv.x, pv.y, R, -hi, -lo); else ctx.arc(pv.x, pv.y, R, Math.PI + lo, Math.PI + hi);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#7dff9a'; ctx.lineWidth = 4; ctx.beginPath();
+    if (f > 0) ctx.arc(pv.x, pv.y, R, -hi, -lo); else ctx.arc(pv.x, pv.y, R, Math.PI + lo, Math.PI + hi);
+    ctx.stroke();
+    const ru = dir(arec.angle * Math.PI / 180);
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(pv.x + ru.x * R * 0.5, pv.y + ru.y * R * 0.5); ctx.lineTo(pv.x + ru.x * (R + 7), pv.y + ru.y * (R + 7)); ctx.stroke();
+    ctx.strokeStyle = '#b6ffc9'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.lineCap = 'butt';
+  }
   // 눈금
   for (let d = 0; d <= 90; d += 5) {
     const u = dir(d * Math.PI / 180), l = d % 30 === 0 ? 10 : d % 10 === 0 ? 6 : 3;
@@ -7706,9 +9091,252 @@ function drawAimGuide(ctx, t, cur) {
   }
   // 바늘 끝 각도 표시
   const lx = pv.x + u.x * (R + 24), ly = pv.y + u.y * (R + 24);
-  pill(ctx, lx - 19, ly - 10, 38, 20, 'rgba(10,14,30,0.85)', '#ffd23f');
-  txt(ctx, Math.round(cur.angle) + '°', lx, ly + 1, "14px 'Black Han Sans', sans-serif", '#ffd23f');
+  const angOk = !!(ast && ast.inAngle);
+  pill(ctx, lx - 19, ly - 10, 38, 20, angOk ? 'rgba(20,110,50,0.95)' : 'rgba(10,14,30,0.85)', angOk ? '#7dff9a' : '#ffd23f');
+  txt(ctx, Math.round(cur.angle) + '°', lx, ly + 1, "14px 'Black Han Sans', sans-serif", angOk ? '#eaffef' : '#ffd23f');
   ctx.restore();
+}
+
+
+/* ---------------- 조준 도우미 오버레이 (Assist.state 를 그림 — 계산은 Assist.html) ---------------- */
+const assistState = () => { try { const A = typeof Assist !== 'undefined' ? Assist : null; return A && A.state && A.state.active ? A.state : null; } catch (e) { return null; } };
+const turnLimit = () => (typeof RULES !== 'undefined' && RULES && RULES.turnTime) || TURN_TIME;
+
+function drawAssist(ctx, t, cur) {
+  const st = assistState();
+  if (!st || !cur || !cur.alive || G.anim || !G.ctl || cur.cpu) return;
+  const k = UI_K(), rec = st.rec;
+  ctx.save();
+  const tp = st.level >= 2 && st.target != null ? findPlayer(st.target) : null;
+  if (tp && tp.alive) drawTargetMark(ctx, t, tp, k);
+  if (st.level >= 2 && rec && rec.ok && rec.facing === cur.facing) drawGhostAngle(ctx, t, cur, rec, st, k);
+  if (st.path && st.path.length > 1) drawPredPath(ctx, t, st, k);
+  ctx.restore();
+}
+
+/** 목표: 빨간 조준선 + "🎯 목표" 이름표 */
+function drawTargetMark(ctx, t, p, k) {
+  const c = w2s(p.x, p.y - 14), R = Math.max(24, 27 * G.scale) * (1 + 0.05 * Math.sin(t * 6));
+  if (c.x < -60 || c.x > VW.aw + 60 || c.y < -60 || c.y > VW.ah + 60) return;
+  ctx.save(); ctx.translate(c.x, c.y);
+  ctx.lineCap = 'round';
+  ctx.rotate(t * 0.6);
+  for (const [col, lw] of [['rgba(0,0,0,0.6)', 6.5], ['#ff4d4d', 3.4]]) {
+    ctx.strokeStyle = col; ctx.lineWidth = lw;
+    ctx.beginPath(); ctx.arc(0, 0, R, 0.25, Math.PI / 2 - 0.25); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, R, Math.PI / 2 + 0.25, Math.PI - 0.25); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, R, Math.PI + 0.25, Math.PI * 1.5 - 0.25); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, R, Math.PI * 1.5 + 0.25, Math.PI * 2 - 0.25); ctx.stroke();
+  }
+  ctx.rotate(-t * 0.6);
+  for (const [col, lw] of [['rgba(0,0,0,0.6)', 6.5], ['#ff4d4d', 3.4]]) {
+    ctx.strokeStyle = col; ctx.lineWidth = lw;
+    ctx.beginPath();
+    for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2; ctx.moveTo(Math.cos(a) * (R - 6), Math.sin(a) * (R - 6)); ctx.lineTo(Math.cos(a) * (R + 9), Math.sin(a) * (R + 9)); }
+    ctx.stroke();
+  }
+  ctx.restore();
+  // 이름표 위에 "🎯 목표"
+  ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const top = w2s(p.x, p.y - 55 * TANK_SCALE), by = Math.max(top.y - 11 * k, 18 * k) - 30 * k;
+  const bob = Math.abs(Math.sin(t * 5)) * 3 * k, lx = clamp(top.x, 44 * k, VW.aw - 60 * k), ly = Math.max(14 * k, by - 27 * k - bob);
+  const label = '🎯 목표', fs = Math.round(15 * k);
+  ctx.font = `${fs}px 'Jua', sans-serif`;
+  const w = ctx.measureText(label).width + 18 * k;
+  pill(ctx, lx - w / 2, ly - 11 * k, w, 22 * k, '#e53935', '#fff');
+  txt(ctx, label, lx, ly + 1, `${fs}px 'Jua', sans-serif`, '#fff', 'rgba(60,0,0,0.6)', 2.5);
+  ctx.restore();
+}
+
+/** 추천 각도: 포구에서 뻗는 초록 점선 (내 포신 점선을 여기에 겹치면 딱 맞아요) */
+function drawGhostAngle(ctx, t, cur, rec, st, k) {
+  const m = muzzle(G.terrain.mask, cur, rec.angle), f = cur.facing, a = rec.angle * Math.PI / 180;
+  const s0 = w2s(m.x, m.y), u = { x: f * Math.cos(a), y: -Math.sin(a) }, L = Math.max(140, 165 * G.scale);
+  const x1 = s0.x + u.x * L, y1 = s0.y + u.y * L;
+  ctx.save(); ctx.lineCap = 'round';
+  ctx.setLineDash([10 * k, 7 * k]); ctx.lineDashOffset = -t * 28;
+  ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 6.5; ctx.beginPath(); ctx.moveTo(s0.x, s0.y); ctx.lineTo(x1, y1); ctx.stroke();
+  ctx.strokeStyle = st.inAngle ? '#b6ffc9' : '#5dff8a'; ctx.lineWidth = 3.4; ctx.stroke();
+  ctx.setLineDash([]);
+  const nx = -u.y, ny = u.x, h = 11 * k;
+  poly(ctx, [x1 + u.x * h, y1 + u.y * h, x1 + nx * h * 0.7, y1 + ny * h * 0.7, x1 - nx * h * 0.7, y1 - ny * h * 0.7]);
+  ctx.fillStyle = '#5dff8a'; ctx.strokeStyle = '#04210f'; ctx.lineWidth = 2; ctx.fill(); ctx.stroke();
+  const lx = x1 + u.x * (h + 22 * k), ly = y1 + u.y * (h + 22 * k) - 2;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const s = '추천 ' + rec.angle + '°', fs = Math.round(15 * k);
+  ctx.font = `${fs}px 'Jua', sans-serif`;
+  const w = ctx.measureText(s).width + 16 * k;
+  pill(ctx, lx - w / 2, ly - 11 * k, w, 22 * k, '#1f8f45', '#eaffef');
+  txt(ctx, s, lx, ly + 1, `${fs}px 'Jua', sans-serif`, '#fff', 'rgba(0,40,10,0.7)', 2.5);
+  ctx.restore();
+}
+
+/** 예상 궤적(점선) + 떨어질 곳(링, 폭발 반경 크기). 맞을 것 같으면 초록, 내가 맞으면 빨강 */
+function drawPredPath(ctx, t, st, k) {
+  const pts = st.path, land = st.land;
+  const good = !!(st.hit || (land && land.hitAny)), bad = !!(land && land.self);
+  const col = bad ? '255,110,110' : good ? '125,255,154' : (land && land.live) ? '255,226,122' : '255,255,255';
+  const S = pts.map(q => w2s(q[0], q[1]));
+  let total = 0;
+  for (let i = 1; i < S.length; i++) total += Math.hypot(S[i].x - S[i - 1].x, S[i].y - S[i - 1].y);
+  const gap = 15 * k, rad = 3.2 * k;
+  let next = gap - (t * 26) % gap, run = 0;
+  const live = !!(land && land.live), a0 = live ? 1 : 0.8;
+  ctx.save();
+  for (let i = 1; i < S.length; i++) {
+    const a = S[i - 1], b = S[i], dx = b.x - a.x, dy = b.y - a.y, seg = Math.hypot(dx, dy);
+    if (!seg) continue;
+    while (next <= seg) {
+      const x = a.x + dx * next / seg, y = a.y + dy * next / seg;
+      if (x > -20 && x < VW.aw + 20 && y > -20 && y < VW.ah + 20) {
+        const al = a0 * (1 - 0.45 * (run + next) / Math.max(1, total));
+        ctx.fillStyle = 'rgba(0,0,0,0.5)'; circle(ctx, x, y, rad + 1.7); ctx.fill();
+        ctx.fillStyle = `rgba(${col},${al.toFixed(3)})`; circle(ctx, x, y, rad); ctx.fill();
+      }
+      next += gap;
+    }
+    next -= seg; run += seg;
+  }
+  if (land) {
+    const c = w2s(land.x, land.y), R = Math.max(11, land.r * G.scale);
+    if (land.band) {   // 폭격/눈보라: 이 가로 범위에 떨어져요
+      const b0 = w2s(land.band.x0, land.y), b1 = w2s(land.band.x1, land.y);
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(b0.x, c.y + 4); ctx.lineTo(b1.x, c.y + 4); ctx.stroke();
+      ctx.strokeStyle = `rgba(${col},0.95)`; ctx.lineWidth = 3.5; ctx.stroke();
+      for (const bx of [b0.x, b1.x]) { ctx.beginPath(); ctx.moveTo(bx, c.y - 6); ctx.lineTo(bx, c.y + 12); ctx.stroke(); }
+    }
+    ctx.fillStyle = `rgba(${col},${good || bad ? 0.3 : 0.16})`; circle(ctx, c.x, c.y, R); ctx.fill();
+    ctx.setLineDash([7 * k, 5 * k]); ctx.lineDashOffset = -t * 22;
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 5.5; circle(ctx, c.x, c.y, R); ctx.stroke();
+    ctx.strokeStyle = `rgba(${col},1)`; ctx.lineWidth = 3; ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = `rgba(${col},1)`; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(c.x - 7, c.y); ctx.lineTo(c.x + 7, c.y); ctx.moveTo(c.x, c.y - 7); ctx.lineTo(c.x, c.y + 7); ctx.stroke();
+    const label = bad ? '⚠ 조심! 내가 맞아요' : st.hit ? '🎯 명중!' : good ? '👍 맞아요!' : '';
+    if (label) {
+      // 링 아래에 (이름표와 겹치지 않게). 코치 카드/HUD 띠 아래로 내려가 가려지지 않도록 그 위에서 멈춘다
+      const fs = Math.round(16 * k), safeB = VW.ah - Math.max(30 * k, (Cam.rsv || 0) + 8), ly = Math.min(safeB - 12 * k, c.y + R + 17 * k);
+      ctx.font = `${fs}px 'Jua', sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const w = ctx.measureText(label).width + 20 * k, lx = clamp(c.x, w / 2 + 6, VW.aw - w / 2 - 6);
+      pill(ctx, lx - w / 2, ly - 12 * k, w, 24 * k, bad ? '#c62828' : '#1f8f45', '#fff');
+      txt(ctx, label, lx, ly + 1, `${fs}px 'Jua', sans-serif`, '#fff', 'rgba(0,0,0,0.6)', 2.5);
+    }
+  }
+  ctx.restore();
+}
+
+/** HUD 쪽 도우미 UI: 코치 카드, 파워 게이지 초록 구간, 도우미 버튼 (Assist.state 를 읽어 그림) */
+function updateAssistUi(p, force) {
+  const A = typeof Assist !== 'undefined' ? Assist : null;
+  const st = assistState(), hud = $('#hud'), set = (id, v, fn) => { if (force || hudCache[id] !== v) { hudCache[id] = v; fn(v); } };
+  const allowed = !!(A && A.allowed && A.allowed());
+  set('asb', allowed + '|' + (A ? A.level : 0), () => {
+    const b = $('#btn-assist'); if (!b) return;
+    b.hidden = !allowed; b.classList.toggle('on', !!(A && A.level > 0));
+    $('#assist-lv').textContent = A ? A.level : 0;
+    b.title = '조준 도우미 (H): ' + ['꺼짐', '1단계 · 점선 궤적', '2단계 · 궤적 + 추천 각도·힘'][A ? A.level : 0];
+  });
+  // 파워 게이지 초록 구간
+  const rec = st && st.level >= 2 ? st.rec : null;
+  let z = null, dim = false;
+  if (rec && rec.ok) { if (st.zone) z = st.zone; else { z = { pLo: rec.pLo, pHi: rec.pHi, power: rec.power }; dim = true; } }
+  const inPw = !!(st && st.inPower);
+  set('pz', z ? [z.pLo, z.pHi, dim, inPw].join() : inPw + '', () => {
+    const el = $('#hud-pzone'), tx = $('#hud-pzone-t'), g = $('.gauge.power');
+    if (!el || !g) return;
+    hud.classList.toggle('inzone', inPw);
+    if (!z) { el.hidden = true; tx.hidden = true; return; }
+    const minPct = 9 / Math.max(60, g.clientWidth) * 100, w = Math.max(z.pHi - z.pLo, 0), mid = (z.pLo + z.pHi) / 2, ww = Math.max(w, minPct);
+    el.hidden = false; el.style.left = clamp(mid - ww / 2, 0, 100 - ww) + '%'; el.style.width = ww + '%';
+    el.classList.toggle('dim', dim); el.classList.toggle('in', inPw);
+    tx.hidden = false; tx.textContent = '🟢 ' + zoneText(z); tx.classList.toggle('dim', dim); tx.classList.toggle('in', inPw);
+  });
+  updateCoach(st, p);
+}
+
+/** 코치 카드 (DOM): 3단계 + 지금 할 일 + 미니 파워 바 (도우미를 끈 비기너 턴에는 '다시 켜기' 한 줄) */
+function updateCoach(st, p) {
+  const el = $('#coach'); if (!el) return;
+  const A = typeof Assist !== 'undefined' ? Assist : null, raw = A && A.state;
+  const offHint = !!(!st && raw && raw.offHint && G.screen === 'play' && p);
+  const show = !!((st && st.level >= 1 && G.screen === 'play' && p) || offHint);
+  const touch = document.body.classList.contains('touch');
+  if (!show) { VW.coachRsv = 0; if (hudCache.coach !== 'off') { hudCache.coach = 'off'; el.classList.add('hidden'); } return; }
+  const set$ = (id, v) => { const e = $(id); if (e) e.textContent = v; };
+  if (offHint) {
+    const key = 'off|' + touch;
+    if (hudCache.coach !== key) {
+      hudCache.coach = key;
+      el.classList.remove('hidden'); el.dataset.tone = 'info'; el.dataset.level = '0';
+      set$('#co-ic', '🎯'); set$('#co-text', '조준 도우미가 꺼졌어요'); set$('#co-ctext', '도우미가 꺼졌어요');
+      set$('#co-sub', touch ? '켜기 버튼이나 아래쪽 🎯 버튼으로 다시 켜요' : 'H 키나 켜기 버튼으로 다시 켜요');
+      $('#co-on').hidden = false; $('#co-auto').hidden = true; $('#co-bar').hidden = true;
+      hudCache.coachSize = 0;
+    }
+    el.classList.remove('charging');
+  } else {
+    const m = st.msg || {}, rec = st.rec, ok = !!(rec && rec.ok), z = st.zone || (ok ? { pLo: rec.pLo, pHi: rec.pHi, power: rec.power } : null);
+    const key = [st.level, m.tone, m.icon, m.text, m.sub, m.c, st.targetName, (st.steps || []).join(), ok ? rec.angle : '', z ? zoneText(z) : '', st.inAngle, ok, touch].join('|');
+    if (hudCache.coach !== key) {
+      hudCache.coach = key;
+      el.classList.remove('hidden'); el.dataset.tone = m.tone || 'info'; el.dataset.level = st.level;
+      set$('#co-lv', st.level); set$('#co-tg-n', st.targetName || '-');
+      set$('#co-ic', m.icon || ''); set$('#co-text', m.text || ''); set$('#co-ctext', m.c || m.text || ''); set$('#co-sub', m.sub || '');
+      ['#co-s1', '#co-s2', '#co-s3'].forEach((id, i) => { $(id).dataset.st = (st.steps || [])[i] || 'todo'; });
+      set$('#co-s1v', ok ? rec.angle + '°' : '–');
+      set$('#co-s2v', z && ok ? zoneText(z) : '–');
+      $('#co-on').hidden = true;
+      $('#co-auto').hidden = !(st.level >= 2 && ok && !st.inAngle);
+      $('#co-bar').hidden = !(st.level >= 2 && ok && (st.inAngle || st.charging));
+      hudCache.coachSize = 0;
+    }
+    el.classList.toggle('charging', !!st.charging);
+    const bar = $('#co-bar');
+    if (!bar.hidden) {
+      const z = st.zone || (st.rec && st.rec.ok ? { pLo: st.rec.pLo, pHi: st.rec.pHi, power: st.rec.power } : null);
+      const fill = $('#co-bar-fill'), zn = $('#co-bar-zone'), mk = $('#co-bar-mark');
+      const pw = clamp(st.charging ? st.power : 0, 0, 100);
+      fill.style.width = pw + '%'; fill.style.setProperty('--cbw', bar.clientWidth + 'px'); fill.style.backgroundSize = Math.max(100, bar.clientWidth) + 'px 100%';
+      mk.style.left = pw + '%';
+      if (z) { const ww = Math.max(z.pHi - z.pLo, 9 / Math.max(60, bar.clientWidth) * 100), mid = (z.pLo + z.pHi) / 2; zn.style.left = clamp(mid - ww / 2, 0, 100 - ww) + '%'; zn.style.width = ww + '%'; }
+      zn.classList.toggle('in', !!st.inPower);
+    }
+  }
+  // 위치: 탱크·조준 가이드를 가리지 않도록 가운데 → 왼쪽 → 오른쪽 중 안 겹치는 곳 (0.2초마다 점검)
+  if (G.t - (hudCache.coachT || 0) > 0.2 || !hudCache.coachSize) {
+    hudCache.coachT = G.t;
+    const aw = VW.aw;
+    // 터치 화면: 화살표/발사 패드의 실제 위치(DOM)를 피한다 — 패드 크기는 화면마다 다르다
+    let xMin = 12, xMax = aw - 12;
+    if (touch) {
+      const pl = $('#touch .tpad.left'), pr = $('#touch .tpad.right');
+      const a = pl && pl.getBoundingClientRect(), b = pr && pr.getBoundingClientRect();
+      if (a && a.width) xMin = Math.max(xMin, a.right + 8);
+      if (b && b.width) xMax = Math.min(xMax, b.left - 8);
+    }
+    el.style.maxWidth = touch && xMax - xMin > 260 ? (xMax - xMin) + 'px' : '';
+    const cw = el.offsetWidth, ch = el.offsetHeight;
+    if (!cw) return;
+    hudCache.coachSize = cw;
+    const low = innerHeight < 521, bottomGap = low ? 8 : 12, top = VW.ah - bottomGap - ch;
+    // 카메라(View.assistFrame)에 알려주는 카드 자리: 카드 높이 + 바닥 여백 + 아직 안 보이는 파워 바(22px) 몫 — 카드가 커졌다 작아져도 화면이 흔들리지 않게
+    VW.coachRsv = offHint ? 0 : ch + bottomGap + 12 + ($('#co-bar').hidden && el.dataset.level === '2' ? 22 : 0);
+    const pv = w2s(p.x, p.y - 25 * TANK_SCALE), R = Math.max(58, 62 * G.scale) + 36;
+    // 가리면 안 되는 곳: 내 탱크+조준 가이드(가장 중요), 목표 탱크+이름표, 착탄 링
+    const kos = [{ x0: pv.x - R, x1: pv.x + R, y0: pv.y - R, y1: pv.y + 44, w: 3 }];
+    const tgt = st && st.level >= 2 && st.target != null ? findPlayer(st.target) : null;
+    if (tgt) { const tc = w2s(tgt.x, tgt.y - 14); kos.push({ x0: tc.x - 48, x1: tc.x + 48, y0: tc.y - 95, y1: tc.y + 34, w: 3 }); }
+    if (st && st.land) { const lc = w2s(st.land.x, st.land.y), lr = Math.max(14, st.land.r * G.scale); kos.push({ x0: lc.x - lr, x1: lc.x + lr, y0: lc.y - lr, y1: lc.y + lr + 34, w: 1.5 }); }
+    const overlap = x => kos.reduce((sum, ko) => sum + ko.w * Math.max(0, Math.min(x + cw, ko.x1) - Math.max(x, ko.x0)) * Math.max(0, Math.min(top + ch, ko.y1) - Math.max(top, ko.y0)), 0);
+    const cand = [{ s: 'c', x: clamp((aw - cw) / 2, xMin, Math.max(xMin, xMax - cw)) }, { s: 'l', x: xMin }, { s: 'r', x: Math.max(xMin, xMax - cw) }];
+    let best = cand[0], bo = 1e12;
+    const cur = el.dataset.side;
+    for (const c of cand) { const o = overlap(c.x) - (c.s === cur ? 300 : 0); if (o < bo) { bo = o; best = c; } }   // 지금 자리를 조금 우대 (깜빡임 방지)
+    const centered = best.s === 'c' && Math.abs(best.x - (aw - cw) / 2) < 1;
+    el.dataset.side = best.s === 'c' && !centered ? 'l' : best.s;    // 가운데가 패드에 걸려 옮긴 자리는 transform 없는 'l' 스타일로
+    if (centered) { el.style.left = ''; el.style.right = ''; } else { el.style.left = best.x + 'px'; el.style.right = 'auto'; }
+  }
 }
 
 /* ---------------- 화면 밖 표시 ---------------- */
@@ -7735,7 +9363,8 @@ function drawOffscreen(ctx, t) {
     const pulse = 0.75 + 0.25 * Math.sin(t * 14);
     mark(pr.x, pr.y, `rgba(255,${Math.round(80 * pulse)},60,0.95)`, pr.y < 0 ? '▲' + Math.round(-pr.y / 10) + 'm' : Math.round(Math.max(1, d / 10)) + 'm', 11);
   }
-  for (const p of G.players) if (p.alive) mark(p.x, p.y - 20, p.pc.c, '', 8);
+  const astT = assistState();
+  for (const p of G.players) if (p.alive) { const isT = !!(astT && astT.level >= 2 && astT.target === p.id); mark(p.x, p.y - 20, isT ? '#ff4d4d' : p.pc.c, isT ? '🎯' : '', isT ? 10 : 8); }
 }
 
 /* ---------------- 상단 바람 표시 ---------------- */
@@ -7892,6 +9521,7 @@ function tickMinis() {
 
 function updateHud(force) {
   const p = curPlayer();
+  try { updateAssistUi(p, force); } catch (e) { if (!hudCache.assistErr) { hudCache.assistErr = 1; console.error('updateAssistUi', e); } }
   if (!p) { renderTurnbar(force); return; }
   const c = G.ctl, T = TANKS[p.tank];
   const live = (!c && G.live && G.turn && G.live.actor === p.id && G.live.no === G.turn.no) ? G.live : null;
@@ -7932,7 +9562,7 @@ function updateHud(force) {
   const tl = Math.max(0, G.turn ? G.turn.timeLeft : 0), tc = Math.ceil(tl);
   set('timer', Math.round(tl * 4), () => {
     const el = $('#hud-timer'), ring = $('#hud-timer-rng'), busy = G.busy || !G.turn;
-    ring.style.strokeDashoffset = (169.6 * (1 - clamp(tl / TURN_TIME, 0, 1))).toFixed(1);
+    ring.style.strokeDashoffset = (169.6 * (1 - clamp(tl / turnLimit(), 0, 1))).toFixed(1);
     $('#hud-timer-t').textContent = tc;
     el.classList.toggle('warn', tc <= 5 && !busy); el.classList.toggle('mid', tc > 5 && tc <= 10 && !busy); el.classList.toggle('idle', busy);
   });
@@ -7952,8 +9582,11 @@ function updateHud(force) {
   set('items', hasItems() ? JSON.stringify([p.id, p.items || null, item, canCtl]) : '', () => renderItems(p, item, canCtl));
   set('emo', hasEmotes(), v => { $('#btn-emote').classList.toggle('none', !v); if (!v) $('#emote-pop').classList.remove('show'); });
   set('mine', canCtl, v => { hud.classList.toggle('mine', v); $('#touch').classList.toggle('active', v); });
+  // 터치 ✋ 취소 버튼은 내가 힘을 채우는 동안(취소할 수 있는 판)에만
+  set('tcancel', !!(canCtl && c && c.charging && typeof canCancelCharge === 'function' && canCancelCharge()), v => $('#touch').classList.toggle('charging', v));
   const tilt = G.terrain ? calcTilt(G.terrain.mask, p) : 0;
-  set('ang', Math.round(p.angle * 2) * p.facing + '|' + Math.round(tilt * 50) + '|' + p.id + '|' + (PrevAim[p.id] ? PrevAim[p.id].angle : ''), () => drawAngleDial(p));
+  const dast = assistState(), drec = dast && dast.level >= 2 && dast.rec && dast.rec.ok && dast.rec.facing === p.facing ? dast.rec : null;
+  set('ang', Math.round(p.angle * 2) * p.facing + '|' + Math.round(tilt * 50) + '|' + p.id + '|' + (PrevAim[p.id] ? PrevAim[p.id].angle : '') + '|' + (drec ? drec.aLo + '-' + drec.aHi + '-' + drec.angle : ''), () => drawAngleDial(p));
   if ((G.frameNo = (G.frameNo || 0) + 1) % 3 === 0 || force) drawPortrait(p);
   set('pbadge', [p.frozenT > 0, p.alive, moodOf(p)].join(), () => {
     const m = moodOf(p), MT = { happy: '😄 신남', sad: '😢 우울', angry: '😠 분노', smug: '😏 여유' };
@@ -8095,6 +9728,17 @@ function drawAngleDial(p) {
   const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
   g.addColorStop(0, 'rgba(126,224,255,0.05)'); g.addColorStop(1, 'rgba(126,224,255,0.2)');
   ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, f > 0 ? -Math.PI / 2 : Math.PI, f > 0 ? 0 : Math.PI * 1.5); ctx.closePath(); ctx.fill();
+  // 조준 도우미: 이 각도면 맞아요 (초록 부채꼴)
+  const ast = assistState(), arec = ast && ast.level >= 2 && ast.rec && ast.rec.ok && ast.rec.facing === f ? ast.rec : null;
+  if (arec) {
+    const lo = arec.aLo * Math.PI / 180, hi = arec.aHi * Math.PI / 180;
+    ctx.fillStyle = 'rgba(80,235,120,0.55)'; ctx.beginPath(); ctx.moveTo(cx, cy);
+    if (f > 0) ctx.arc(cx, cy, r, -hi, -lo); else ctx.arc(cx, cy, r, Math.PI + lo, Math.PI + hi);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#7dff9a'; ctx.lineWidth = 3.5; ctx.beginPath();
+    if (f > 0) ctx.arc(cx, cy, r, -hi, -lo); else ctx.arc(cx, cy, r, Math.PI + lo, Math.PI + hi);
+    ctx.stroke();
+  }
   // 현재 각도 채움
   ctx.fillStyle = 'rgba(255,210,63,0.25)'; ctx.beginPath(); ctx.moveTo(cx, cy);
   const a = p.angle * Math.PI / 180;
@@ -8119,6 +9763,16 @@ function drawAngleDial(p) {
     const u = dir(pa.angle);
     ctx.strokeStyle = 'rgba(126,224,255,0.8)'; ctx.lineWidth = 2; ctx.setLineDash([3, 3]);
     ctx.beginPath(); ctx.moveTo(cx + u.x * r * 0.3, cy + u.y * r * 0.3); ctx.lineTo(cx + u.x * r, cy + u.y * r); ctx.stroke(); ctx.setLineDash([]);
+  }
+  // 추천 각도: 초록 눈금 + 숫자
+  if (arec) {
+    const ru = dir(arec.angle);
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(0,0,0,0.65)'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(cx + ru.x * r * 0.45, cy + ru.y * r * 0.45); ctx.lineTo(cx + ru.x * (r + 5), cy + ru.y * (r + 5)); ctx.stroke();
+    ctx.strokeStyle = '#b6ffc9'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.font = "15px 'Black Han Sans', sans-serif"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const tx = cx + ru.x * r * 0.68, ty = cy + ru.y * r * 0.68;
+    ctx.lineWidth = 4; ctx.strokeStyle = '#04210f'; ctx.strokeText(arec.angle, tx, ty); ctx.fillStyle = '#eaffef'; ctx.fillText(arec.angle, tx, ty);
   }
   // 바늘
   const u = dir(p.angle);
@@ -8172,6 +9826,13 @@ function openEmotes() {
 }
 $('#btn-emote').onclick = () => { Sound.init(); openEmotes(); };
 $('#btn-view').onclick = () => { Sound.init(); toggleFullView(); };
+/* 조준 도우미 버튼 (클릭 뒤 포커스가 남아 Space 발사 키와 겹치지 않도록 blur) */
+const assistBtn = (id, fn) => { const b = $(id); if (b) b.onclick = e => { Sound.init(); try { if (typeof Assist !== 'undefined') fn(Assist); } catch (err) { console.error(err); } if (e && e.currentTarget) e.currentTarget.blur(); updateHud(true); }; };
+assistBtn('#btn-assist', A => A.cycle());
+assistBtn('#co-off', A => A.cycle());
+assistBtn('#co-auto', A => A.autoAim());
+assistBtn('#co-tnext', A => A.nextTarget());
+assistBtn('#co-on', A => A.setLevel(2));
 
 /* ---------------- UI: 배너 / 토스트 ---------------- */
 let bannerTimer = null;
@@ -8255,7 +9916,7 @@ function syncSettingsForm() {
 function openModal(id) {
   const m = $('#' + id); if (!m) return;
   if (id === 'settings') syncSettingsForm();
-  if (id === 'help') buildHelp();
+  if (id === 'help') { buildHelp(); if (G.screen === 'title' && LocalLobby.beginner) helpTab('beginner', true); }
   m.classList.add('show'); uiSound('select');
 }
 function closeModal(id) { const m = $('#' + id); if (m && m.classList.contains('show')) { m.classList.remove('show'); uiSound('click'); } }
@@ -8599,6 +10260,14 @@ function mapPicker(cur, editable) {
 }
 function randomTank(except) { const ids = TANK_IDS.filter(t => t !== except); return ids[Math.floor(Math.random() * ids.length)]; }
 
+/* ---------------- 비기너 모드 (로컬 설정은 localStorage 에 저장) ---------------- */
+const BEG_KEY = 'fortress_beginner';
+const BEG_DESC_ON = '폭발 커요 · 내 포탄 안전 · 각도·힘 안내';
+const BEG_DESC_OFF = '쉬운 규칙 · 각도와 힘을 알려줘요';
+const BEG_TIP = '탱크를 고르고 [게임 시작 ▶] 을 눌러요';   // 타이틀의 '비기너로 시작' 으로 들어왔을 때 (토스트는 슬롯 카드 머리글을 가려서 이 자리에 고정)
+function loadBeginnerPref() { try { return localStorage.getItem(BEG_KEY) === '1'; } catch (e) { return false; } }
+function saveBeginnerPref(v) { try { localStorage.setItem(BEG_KEY, v ? '1' : '0'); } catch (e) { /* 무시 */ } }
+
 /* ---------------- 로컬 로비 ---------------- */
 const LocalLobby = {
   slots: [
@@ -8607,8 +10276,32 @@ const LocalLobby = {
     { kind: 'cpu', name: 'CPU 3', tank: 'laser', team: 1 },
     { kind: 'none', name: '', tank: 'multi', team: 2 }
   ],
-  theme: 'random', teamMode: false
+  theme: 'random', teamMode: false, beginner: loadBeginnerPref()
 };
+
+/** 로컬 로비의 비기너 토글(체크박스 + 라벨 색/설명)을 LocalLobby.beginner 에 맞춤 */
+function syncLocalBeginner() {
+  const beg = !!LocalLobby.beginner, inp = $('#local-beginner');
+  if (inp) inp.checked = beg;
+  const box = $('#local-beg-box'); if (box) box.classList.toggle('on', beg);
+  const d = $('#local-beg-desc'); if (d) d.textContent = beg ? (LocalLobby.tip ? BEG_TIP : BEG_DESC_ON) : BEG_DESC_OFF;
+  if (box) box.classList.toggle('tip', beg && !!LocalLobby.tip);
+}
+function setLocalBeginner(v) {
+  LocalLobby.beginner = !!v; LocalLobby.tip = false; saveBeginnerPref(LocalLobby.beginner);
+  uiSound(LocalLobby.beginner ? 'select' : 'click');
+  syncLocalBeginner();
+}
+/** 타이틀의 '🐣 비기너로 시작': 비기너 켜고 어린이용 구성(사람 1 + CPU 2, 개인전)으로 로비를 연다 */
+function beginnerQuickStart() {
+  const L = LocalLobby, S = L.slots;
+  L.beginner = true; L.tip = true; saveBeginnerPref(true);
+  L.teamMode = false;
+  S[0].kind = 'human'; if (!S[0].name) S[0].name = '플레이어1';
+  [1, 2].forEach(i => { if (S[i].kind !== 'cpu') { S[i].kind = 'cpu'; S[i].name = 'CPU ' + (i + 1); S[i].tank = randomTank(S[0].tank); } });
+  S[3].kind = 'none';
+  renderLocalLobby(); showScreen('lobby');
+}
 
 function renderLocalLobby() {
   const L = LocalLobby;
@@ -8619,6 +10312,7 @@ function renderLocalLobby() {
   }), L.teamMode)).join('');
   $('#local-maps').innerHTML = mapPicker(L.theme, true);
   $('#local-team').checked = L.teamMode;
+  syncLocalBeginner();
   paintStatic($('#scr-lobby'));
   const n = L.slots.filter(s => s.kind !== 'none').length;
   $('#local-start').disabled = n < 2;
@@ -8628,6 +10322,7 @@ function localLobbyAction(e) {
   const b = e.target.closest('[data-act],[data-map]');
   if (!b) return;
   const L = LocalLobby;
+  if (L.tip) { L.tip = false; syncLocalBeginner(); }
   if (b.dataset.map) { L.theme = b.dataset.map; uiSound('select'); renderLocalLobby(); return; }
   const i = +b.dataset.i, s = L.slots[i], act = b.dataset.act;
   if (act === 'name' || !s) return;
@@ -8652,7 +10347,7 @@ function startLocalGame() {
     if (sides.size < 2) { toast('팀전은 최소 두 편이 필요합니다.'); return; }
   }
   uiSound('ready');
-  G.lastConfig = { players, teamMode: L.teamMode, theme: L.theme };
+  G.lastConfig = { players, teamMode: L.teamMode, theme: L.theme, beginner: !!L.beginner };
   launchLocal(G.lastConfig);
 }
 
@@ -8704,7 +10399,7 @@ function enterOnlineLobby(sess) {
   Online.sess = sess;
   resetMatch();
   G.attract = false; Sound.silent = false;
-  Online.lastKey = null;
+  Online.lastKey = null; Online.begPend = null; Online.begRun = null;
   G.backend = new OnlineBackend(sess);
   showScreen('onlineLobby');
   $('#room-code').textContent = sess.code;
@@ -8715,7 +10410,10 @@ function renderOnlineLobby() {
   const B = G.backend, room = B && B.room;
   if (!room) return;
   const host = room.hostId === B.pid;
-  const key = JSON.stringify([room.players, room.theme, room.teamMode, room.hostId]);
+  let beg = !!room.beginner;
+  // 방장이 방금 바꾼 값은 서버 응답이 오기 전까지 (오래된 폴링 결과보다) 우선
+  if (host && Online.begPend) beg = Online.begPend.v;
+  const key = JSON.stringify([room.players, room.theme, room.teamMode, room.hostId, beg]);
   if (key === Online.lastKey) return;
   Online.lastKey = key;
   const prev = Online.slots || [];
@@ -8731,11 +10429,45 @@ function renderOnlineLobby() {
   $('#on-slots').innerHTML = slots.map((s, i) => slotCard(i, s, room.teamMode)).join('');
   $('#on-maps').innerHTML = mapPicker(room.theme, host);
   $('#on-team').checked = room.teamMode; $('#on-team').disabled = !host;
+  syncOnlineBeginner(beg, host);
   $('#on-start').style.display = host ? '' : 'none';
   $('#on-start').disabled = room.players.length < 2;
   $('#on-wait').style.display = host ? 'none' : '';
   $('#on-count').textContent = room.players.length;
   paintStatic($('#scr-onlineLobby'));
+}
+
+/** 온라인 방의 비기너 표시(헤더): 방장은 토글, 나머지는 방 설정을 보여주는 읽기 전용 배지 */
+function syncOnlineBeginner(beg, host) {
+  const inp = $('#on-beginner'); if (!inp) return;
+  inp.checked = beg; inp.disabled = !host;
+  const box = $('#on-beg-box'); box.classList.toggle('on', beg); box.classList.toggle('ro', !host);
+  box.title = host ? '비기너 모드: 쉬운 규칙 + 각도·힘 안내' : '방장이 정해요';
+  $('#on-beg-desc').textContent = host ? (beg ? BEG_DESC_ON : BEG_DESC_OFF) : (beg ? '방장이 켰어요 · 쉬운 규칙' : '방장이 정해요');
+}
+/** 방장의 비기너 토글은 한 번에 하나씩 서버로 보낸다 (빨리 두 번 눌러도 마지막 값이 이기도록).
+ *  게임 시작 버튼도 이 전송이 끝난 뒤에 보낸다 (순서가 뒤바뀌면 토글이 켜진 채로 일반 규칙으로 시작할 수 있다). */
+async function onlineBeginnerToggle(e) {
+  const B = G.backend, room = B && B.room, v = e.target.checked;
+  if (!room || room.hostId !== B.pid) { Online.lastKey = null; renderOnlineLobby(); return; }
+  Online.begPend = { v, t: performance.now() };
+  syncOnlineBeginner(v, true);           // 즉시 반영(낙관적)
+  uiSound(v ? 'select' : 'click');
+  if (Online.begRun) return;             // 이미 전송 중이면 값만 기억해 두면 끝난 뒤 이어서 보낸다
+  const run = Online.begRun = (async () => {
+    let sent = null;
+    try {
+      while (Online.begPend && Online.begPend.v !== sent) {
+        sent = Online.begPend.v;
+        try { B.room = await Net.call('hostUpdate', B.code, B.pid, B.token, { beginner: sent }); }
+        catch (err) { toast(err.message); break; }
+      }
+    } finally {
+      if (Online.begRun === run) { Online.begRun = null; Online.begPend = null; }
+      Online.lastKey = null; if (G.screen === 'onlineLobby') renderOnlineLobby();
+    }
+  })();
+  return run;
 }
 
 async function onlineLobbyAction(e) {
@@ -8766,6 +10498,7 @@ async function onlineLobbyAction(e) {
 async function onlineStart() {
   const B = G.backend;
   uiSound('ready');
+  if (Online.begRun) { try { await Online.begRun; } catch (e) { /* 토글 실패는 이미 알렸다 */ } }   // 방금 누른 비기너 토글이 서버에 반영된 다음에 시작
   try { B.room = await Net.call('startGame', B.code, B.pid, B.token); }
   catch (e) { toast(e.message); }
 }
@@ -8814,10 +10547,11 @@ function dexPilot(id, slot) {
       <p>${esc(P.desc)}</p><div class="dp-like">좋아하는 것: ${esc(P.like)}</div>
       <ul class="dp-lines">${['turn', 'hit', 'miss', 'win'].map(pick).join('')}</ul></div></div>`;
 }
-function helpTab(name) {
+function helpTab(name, quiet) {
   $$('#help-tabs .tab').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
   $$('#help .tabpane').forEach(p => p.classList.toggle('on', p.dataset.pane === name));
-  uiSound('click');
+  const tb = $('#help .tabbody'); if (tb) tb.scrollTop = 0;
+  if (!quiet) uiSound('click');
 }
 
 /* =========================================================
@@ -8962,6 +10696,7 @@ function showResult(ev) {
   $('#res-title').textContent = title;
   $('#res-title').style.setProperty('--tc', win.length ? (G.teamMode && win[0].team ? TEAM_COLORS[win[0].team] : win[0].pc.c) : '#cfd8e3');
   $('#res-sub').textContent = `${G.teamMode ? '팀전' : '개인전'} · ${THEMES[G.themeId] ? THEMES[G.themeId].name : ''} 맵 · ${G.players.length}인 대전`;
+  if (typeof G !== 'undefined' && G.beginner) { const bs = document.createElement('span'); bs.className = 'rs-beg'; bs.textContent = '🐣 비기너 모드'; $('#res-sub').appendChild(bs); }
   { // 우승 캐릭터의 한마디
     let q = $('#res-quote');
     if (!q) { q = document.createElement('div'); q.id = 'res-quote'; $('#res-title').insertAdjacentElement('afterend', q); }
@@ -9020,7 +10755,8 @@ function boot() {
   bindUiSounds();
   try { const n = localStorage.getItem('fortress_name'); if (n) $('#on-name').value = n; } catch (e) { }
 
-  $('#btn-local').onclick = () => { Sound.init(); uiSound('select'); renderLocalLobby(); showScreen('lobby'); };
+  $('#btn-local').onclick = () => { Sound.init(); uiSound('select'); LocalLobby.tip = false; renderLocalLobby(); showScreen('lobby'); };
+  $('#btn-beginner').onclick = () => { Sound.init(); uiSound('select'); beginnerQuickStart(); };
   $('#btn-online').onclick = () => {
     Sound.init(); uiSound('select');
     $('#on-unavail').style.display = Net.available() ? 'none' : '';
@@ -9048,6 +10784,7 @@ function boot() {
   $('#local-slots').addEventListener('click', localLobbyAction);
   $('#local-maps').addEventListener('click', localLobbyAction);
   $('#local-team').onchange = e => { LocalLobby.teamMode = e.target.checked; uiSound('click'); renderLocalLobby(); };
+  $('#local-beginner').onchange = e => setLocalBeginner(e.target.checked);
   $('#local-start').onclick = () => { Sound.init(); startLocalGame(); };
   $('#on-create').onclick = onlineCreate;
   $('#on-join').onclick = onlineJoin;
@@ -9056,6 +10793,7 @@ function boot() {
   $('#on-slots').addEventListener('click', onlineLobbyAction);
   $('#on-maps').addEventListener('click', onlineLobbyAction);
   $('#on-team').onchange = async e => { const B = G.backend; try { B.room = await Net.call('hostUpdate', B.code, B.pid, B.token, { teamMode: e.target.checked }); Online.lastKey = null; renderOnlineLobby(); } catch (err) { toast(err.message); } };
+  $('#on-beginner').onchange = onlineBeginnerToggle;
   $('#on-start').onclick = onlineStart;
   $('#room-code').onclick = copyRoomCode;
   $('#room-copy').onclick = copyRoomCode;
@@ -9064,7 +10802,15 @@ function boot() {
   $('#res-home').onclick = () => { uiSound('click'); goTitle(); };
   $('#btn-quit').onclick = () => { if (confirm('게임에서 나가시겠습니까?')) goTitle(); };
   $('#btn-mute').onclick = () => { Sound.init(); Sound.setMuted(!Sound.muted); $('#btn-mute').textContent = Sound.muted ? '🔇' : '🔊'; };
-  $('#btn-skip').onclick = skipMyTurn;
+  // 터치로 누를 때는 한 번 더 눌러야 턴이 넘어간다 (작은 버튼이라 손가락이 잘못 닿아 차례를 잃는 일 방지). 키보드 Tab/P 는 그대로.
+  let skipArm = 0, skipTimer = null;
+  $('#btn-skip').onclick = e => {
+    const touch = e && e.pointerType ? e.pointerType === 'touch' : document.body.classList.contains('touch');
+    const b = $('#btn-skip');
+    if (!touch || performance.now() - skipArm < 2500) { skipArm = 0; clearTimeout(skipTimer); b.classList.remove('arm'); skipMyTurn(); return; }
+    skipArm = performance.now(); b.classList.add('arm'); toast('⏭ 턴을 넘기려면 한 번 더 눌러요');
+    clearTimeout(skipTimer); skipTimer = setTimeout(() => { skipArm = 0; b.classList.remove('arm'); }, 2500);
+  };
   $$('#hud-weapons .wbtn').forEach((b, i) => b.onclick = () => selectWeapon(i));
   if ('ontouchstart' in window || navigator.maxTouchPoints > 0) document.body.classList.add('touch');
   $$('.ver').forEach(v => v.textContent = UI_VERSION);
